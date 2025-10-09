@@ -1,0 +1,107 @@
+import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
+import { z } from "zod";
+
+import {
+  formatFetchResponse,
+  formatSearchResults,
+} from "./utils/formatter.js";
+import { fetchDocumentText } from "./services/fetcher.js";
+import { searchAustLii } from "./services/austlii.js";
+
+const formatEnum = z.enum(["json", "text", "markdown", "html"]).default("json");
+const jurisdictionEnum = z.enum(["cth", "vic", "federal", "other"]);
+
+async function main() {
+  const server = new McpServer({
+    name: "auslaw-mcp",
+    version: "0.1.0",
+    description:
+      "Australian legislation and case law searcher with OCR-aware document retrieval.",
+  });
+
+  const searchLegislationShape = {
+    query: z.string().min(1, "Query cannot be empty."),
+    jurisdiction: jurisdictionEnum.optional(),
+    limit: z.number().int().min(1).max(50).optional(),
+    format: formatEnum.optional(),
+  };
+  const searchLegislationParser = z.object(searchLegislationShape);
+
+  server.registerTool(
+    "search_legislation",
+    {
+      title: "Search Legislation",
+      description:
+        "Search Australian legislation (Commonwealth and Victorian focus) and return structured matches.",
+      inputSchema: searchLegislationShape,
+    },
+    async (rawInput) => {
+      const { query, jurisdiction, limit, format } =
+        searchLegislationParser.parse(rawInput);
+      const results = await searchAustLii(query, {
+        type: "legislation",
+        jurisdiction,
+        limit,
+      });
+      return formatSearchResults(results, format ?? "json");
+    },
+  );
+
+  const searchCasesShape = {
+    query: z.string().min(1, "Query cannot be empty."),
+    jurisdiction: jurisdictionEnum.optional(),
+    limit: z.number().int().min(1).max(50).optional(),
+    format: formatEnum.optional(),
+  };
+  const searchCasesParser = z.object(searchCasesShape);
+
+  server.registerTool(
+    "search_cases",
+    {
+      title: "Search Cases",
+      description:
+        "Search Australian case law with neutral citation fallbacks.",
+      inputSchema: searchCasesShape,
+    },
+    async (rawInput) => {
+      const { query, jurisdiction, limit, format } =
+        searchCasesParser.parse(rawInput);
+      const results = await searchAustLii(query, {
+        type: "case",
+        jurisdiction,
+        limit,
+      });
+      return formatSearchResults(results, format ?? "json");
+    },
+  );
+
+  const fetchDocumentShape = {
+    url: z.string().url("URL must be valid."),
+    format: formatEnum.optional(),
+  };
+  const fetchDocumentParser = z.object(fetchDocumentShape);
+
+  server.registerTool(
+    "fetch_document_text",
+    {
+      title: "Fetch Document Text",
+      description:
+        "Fetch full text for a legislation or case URL, with OCR fallback for scanned PDFs.",
+      inputSchema: fetchDocumentShape,
+    },
+    async (rawInput) => {
+      const { url, format } = fetchDocumentParser.parse(rawInput);
+      const response = await fetchDocumentText(url);
+      return formatFetchResponse(response, format ?? "json");
+    },
+  );
+
+  const transport = new StdioServerTransport();
+  await server.connect(transport);
+}
+
+main().catch((error) => {
+  console.error("Fatal server error", error);
+  process.exit(1);
+});

@@ -1,0 +1,41 @@
+{
+  "name": "auslaw-mcp",
+  "version": "0.1.0",
+  "description": "Model Context Protocol server for Australian legislation and case law search with OCR fallbacks.",
+  "main": "dist/index.js",
+  "scripts": {
+    "build": "tsc",
+    "clean": "rm -rf dist",
+    "dev": "tsx watch src/index.ts",
+    "start": "node dist/index.js",
+    "test": "vitest run"
+  },
+  "keywords": [
+    "model-context-protocol",
+    "australian-law",
+    "mcp-server"
+  ],
+  "author": "Russell Brenner",
+  "license": "MIT",
+  "type": "module",
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.19.1",
+    "axios": "^1.12.2",
+    "cheerio": "^1.1.2",
+    "file-type": "^21.0.0",
+    "node-tesseract-ocr": "^2.2.1",
+    "pdf-parse": "^2.2.2",
+    "tmp": "^0.2.5",
+    "zod": "^3.25.76"
+  },
+  "devDependencies": {
+    "@types/cheerio": "^0.22.35",
+    "@types/node": "^24.7.0",
+    "@types/pdf-parse": "^1.1.5",
+    "@types/tmp": "^0.2.6",
+    "ts-node": "^10.9.2",
+    "tsx": "^4.20.6",
+    "typescript": "^5.9.3",
+    "vitest": "^2.1.3"
+  }
+}
