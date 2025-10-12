@@ -10,7 +10,7 @@ Model Context Protocol (MCP) server that locates Australian primary sources of l
 
 ## Quick Start
 ```bash
-git clone https://github.com/your-user/auslaw-mcp.git
+git clone https://github.com/russellbrenner/auslaw-mcp.git
 cd auslaw-mcp
 npm install
 npm run dev  # hot reload for local development
@@ -21,6 +21,26 @@ To build for production:
 npm run build
 npm start
 ```
+
+## Running Tests
+The project includes comprehensive integration tests covering real-world legal search scenarios:
+
+```bash
+npm test
+```
+
+Test scenarios include:
+1. **Negligence and duty of care** - Personal injury law searches
+2. **Contract disputes** - Commercial law and breach of contract
+3. **Constitutional law** - High Court constitutional matters
+4. **Employment law** - Unfair dismissal and workplace relations
+5. **Property and land law** - Native title and land rights disputes
+
+Tests validate:
+- Results are properly formatted with required fields
+- Only primary sources are returned (no journal articles)
+- Recent cases are prioritized
+- Document fetching works for returned URLs
 
 ## MCP Registration
 Configure your MCP-compatible client (eg. Claude Desktop, Cursor) to launch the compiled server.
