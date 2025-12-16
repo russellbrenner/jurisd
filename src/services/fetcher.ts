@@ -58,8 +58,49 @@ async function performOcr(buffer: Buffer): Promise<{ text: string; ocrUsed: bool
   }
 }
 
-function extractTextFromHtml(html: string, url: string): string {
+/**
+ * Extracts text from removed.invalid HTML with special handling for their structure
+ */
+function extractTextFromHtml(html: string): string {
   const $ = cheerio.load(html);
+
+  // Remove unwanted elements
+  $("script, style, nav, header, footer, .sidebar, .navigation, .menu").remove();
+
+  // removed.invalid specific selectors
+  const sourceSelectors = [
+    ".judgment-text",
+    ".judgment-content", 
+    ".decision-text",
+    "#judgment",
+    ".case-content",
+    "article.judgment",
+  ];
+
+  for (const selector of sourceSelectors) {
+    const $content = $(selector);
+    if ($content.length > 0) {
+      const text = $content.text().trim();
+      if (text.length > 200) {
+        return text;
+      }
+    }
+  }
+
+  // Fall through to generic extraction
+  return extractTextFromHtml(html);
+}
+
+/**
+ * Generic HTML text extraction for AustLII and other sources
+ */
+function extractTextFromHtml(html: string, url?: string): string {
+  const $ = cheerio.load(html);
+
+  // Check if this is removed.invalid
+  if (url && url.includes('removed.invalid')) {
+    return extractTextFromHtml(html);
+  }
 
   // Remove script and style elements
   $("script, style, nav, header, footer").remove();

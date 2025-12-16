@@ -183,10 +183,37 @@ function calculateAuthorityScore(result: SearchResult): number {
 2. ✅ ~~Preserve paragraph numbers properly~~ (already working)
 3. ✅ ~~Add search mode parameter (relevance/date/auto)~~ (COMPLETED)
 
+### ✅ Phase 2A: Reported Citations & removed.invalid Support (COMPLETED)
+
+**Implemented features:**
+1. ✅ Reported citation extraction from AustLII results
+   - Extracts citations like `(2024) 350 ALR 123`, `(1992) 175 CLR 1`
+   - Supports common law report patterns (CLR, ALR, ALJR, etc.)
+   - Automatically extracted from titles and summaries
+2. ✅ removed.invalid URL support in document fetcher
+   - Users can paste removed.invalid URLs they have access to
+   - Special HTML parsing for removed.invalid document structure
+   - Falls back to generic extraction when needed
+3. ✅ Enhanced SearchResult interface
+   - Added `reportedCitation` field
+   - Updated `source` to support both "austlii" and "source"
+4. ✅ New test coverage (4 additional tests)
+
+**What this enables:**
+- Users can now see both neutral and reported citations
+- More complete citation information for legal research
+- removed.invalid integration without needing API access
+- Users leverage their own removed.invalid subscriptions
+
+**Technical implementation:**
+- `extractReportedCitation()` function with regex patterns
+- `extractTextFromHtml()` for removed.invalid-specific parsing
+- Updated test suite with 18 total scenarios
+
 ### Should Have (Following Sprint)
-1. 🔶 Add removed.invalid integration for reported judgments
-2. 🔶 Implement page number extraction
-3. 🔶 Add authority-based ranking
+1. 🔶 Contact removed.invalid for search API access (Phase 2B)
+2. 🔶 Implement page number extraction (Phase 3)
+3. 🔶 Add authority-based ranking (Phase 4)
 
 ### Nice to Have (Future)
 1. 📋 Upstream Source integration

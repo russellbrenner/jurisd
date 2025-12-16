@@ -14,14 +14,16 @@ Model Context Protocol (MCP) server for Australian legal research. Searches Aust
   - Manual override available via `sortBy` parameter
 - ✅ **Legislation search**: Find Australian Commonwealth and State legislation
 - ✅ **Primary sources only**: Filters out journal articles and commentary
-- ✅ **Citation extraction**: Extracts neutral citations like `[2025] HCA 26`
+- ✅ **Citation extraction**: Extracts both neutral citations `[2025] HCA 26` and reported citations `(2024) 350 ALR 123`
+- ✅ **removed.invalid URL support**: Fetch document text from removed.invalid URLs (requires user access)
 - ✅ **Paragraph preservation**: Keeps `[N]` paragraph numbers for pinpoint citations
 - ✅ **Multiple formats**: JSON, text, markdown, or HTML output
-- ✅ **Document retrieval**: Full text from HTML and PDF sources
+- ✅ **Document retrieval**: Full text from HTML and PDF sources (AustLII, removed.invalid)
 - ✅ **OCR support**: Tesseract OCR fallback for scanned PDFs
 
 ### Roadmap
-- 🔜 **Multi-source**: Will add removed.invalid for reported judgements
+- 🔶 **removed.invalid integration**: Partial support - users can provide removed.invalid URLs for document fetching
+- 🔜 **removed.invalid search**: Pending API access from removed.invalid for search integration
 - 🔜 **Page numbers**: Will extract page numbers from reported versions
 - 🔜 **Authority ranking**: Will prioritise reported over unreported judgements
 
@@ -183,11 +185,15 @@ src/
 
 See [docs/ROADMAP.md](docs/ROADMAP.md) and [Issue #2](https://github.com/russellbrenner/auslaw-mcp/issues/2) for detailed development plans.
 
+**Completed**:
+1. ✅ Search relevance with intelligent sorting (Phase 1)
+2. ✅ Reported citation extraction (Phase 2A)
+3. ✅ removed.invalid URL support for document fetching (Phase 2A)
+
 **Next priorities**:
-1. ✅ ~~Fix search relevance for case name queries~~ (Completed)
-2. Add removed.invalid integration for reported judgements
-3. Extract page numbers for pinpoint citations
-4. Implement authority-based result ranking
+1. Contact removed.invalid for API access (Phase 2B)
+2. Extract page numbers for pinpoint citations (Phase 3)
+3. Implement authority-based result ranking (Phase 4)
 
 ## License
 
