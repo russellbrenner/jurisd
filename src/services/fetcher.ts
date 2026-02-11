@@ -70,7 +70,7 @@ function extractTextFromHtml(html: string): string {
   // removed.invalid specific selectors
   const sourceSelectors = [
     ".judgment-text",
-    ".judgment-content", 
+    ".judgment-content",
     ".decision-text",
     "#judgment",
     ".case-content",
@@ -98,7 +98,7 @@ function extractTextFromHtml(html: string, url?: string): string {
   const $ = cheerio.load(html);
 
   // Check if this is removed.invalid
-  if (url && url.includes('removed.invalid')) {
+  if (url && url.includes("removed.invalid")) {
     return extractTextFromHtml(html);
   }
 
@@ -157,19 +157,13 @@ export async function fetchDocumentText(url: string): Promise<FetchResponse> {
     let ocrUsed = false;
 
     // Handle PDF documents
-    if (
-      contentType.includes("application/pdf") ||
-      detectedType?.mime === "application/pdf"
-    ) {
+    if (contentType.includes("application/pdf") || detectedType?.mime === "application/pdf") {
       const result = await extractTextFromPdf(buffer, url);
       text = result.text;
       ocrUsed = result.ocrUsed;
     }
     // Handle HTML documents
-    else if (
-      contentType.includes("text/html") ||
-      detectedType?.mime === "text/html"
-    ) {
+    else if (contentType.includes("text/html") || detectedType?.mime === "text/html") {
       const html = buffer.toString("utf-8");
       text = extractTextFromHtml(html, url);
     }
@@ -199,9 +193,7 @@ export async function fetchDocumentText(url: string): Promise<FetchResponse> {
     };
   } catch (error) {
     if (axios.isAxiosError(error)) {
-      throw new Error(
-        `Failed to fetch document from ${url}: ${error.message}`,
-      );
+      throw new Error(`Failed to fetch document from ${url}: ${error.message}`);
     }
     throw error;
   }
