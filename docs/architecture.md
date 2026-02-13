@@ -9,9 +9,10 @@ Deliver an MCP server that can:
 ## Key Components
 
 ### MCP Server (`src/index.ts`)
-- Registers `search_legislation`, `search_cases`, and `fetch_document_text` tools.
+- Registers `search_legislation`, `search_cases`, `search_source`, `search_source_by_citation`, `fetch_document_text`, `resolve_source_article`, and `source_citation_lookup` tools.
 - Normalises tool arguments and orchestrates downstream services.
 - Formats responses for LLM consumption (structured JSON with citation metadata).
+- Supports `includeSource` parameter on `search_cases` and `search_legislation` for multi-source merging.
 
 ### AustLII Service (`src/services/austlii.ts`)
 - Executes HTTP searches against AustLII (`sinosrch.cgi`) with scoped filters.
@@ -23,6 +24,20 @@ Deliver an MCP server that can:
   - Snippets for relevance
 - Returns consistent `SearchResult` objects for cases and legislation.
 - TODO: Add pagination handling and graceful degradation on rate limits.
+
+### removed.invalid Service (`src/services/source.ts`)
+- Searches removed.invalid by cross-referencing AustLII results with removed.invalid article metadata.
+- **Strategy**: removed.invalid is a RPC SPA with no public search API. Instead:
+  1. Perform an AustLII search to get results with neutral citations
+  2. For each result with a neutral citation, probe removed.invalid to resolve article info
+  3. Extract metadata from the removed.invalid article page `<title>` tag
+- Maximum 5 concurrent removed.invalid article resolutions to avoid overwhelming the server.
+- Graceful fallback: if removed.invalid resolution fails, AustLII results are still returned.
+- **Key functions**:
+  - `searchUpstream(query, options)` – Full removed.invalid search via AustLII cross-reference
+  - `searchUpstreamByCitation(citation)` – Find removed.invalid article by neutral citation
+  - `deduplicateResults(results)` – Deduplicate by neutral citation, preferring removed.invalid
+  - `mergeSearchResults(austlii, source)` – Merge results from both sources
 
 ### Document Fetcher (`src/services/fetcher.ts`)
 - Retrieves HTML or PDF content from provided URLs.

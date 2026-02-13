@@ -55,34 +55,42 @@ interface SearchOptions {
 }
 ```
 
-### Phase 2: Multi-Source Integration (MEDIUM PRIORITY)
+### Phase 2: Multi-Source Integration (COMPLETED ✅)
 
 **Goal**: Search multiple authoritative sources and return best results
 
-**Sources to integrate**:
-1. **removed.invalid** - Superior reported judgments with page numbers
-2. **Upstream Source** - Free access to some reported cases
-3. **AustLII** - Comprehensive unreported coverage (current)
+**Status**: ✅ Implemented without API access using AustLII cross-referencing
+
+**Sources integrated**:
+1. **AustLII** - Comprehensive unreported coverage (original source)
+2. **removed.invalid** - Superior reported judgments with better formatting (NEW)
 
 **Implementation approach**:
+- removed.invalid is a RPC SPA with no public search API
+- Search works by: AustLII search → filter results with neutral citations → resolve removed.invalid articles by probing article pages → extract metadata from HTML `<title>` tag
+- Maximum 5 concurrent removed.invalid article resolutions to avoid overwhelming the server
+- Graceful fallback: if removed.invalid resolution fails, AustLII results are still returned
+- removed.invalid results are preferred when deduplicating (better formatting)
+
+**Implemented functions**:
 ```typescript
-// Parallel search across sources
-const [austliiResults, upstreamResults] = await Promise.all([
-  searchAustLii(query, options),
-  searchUpstream(query, options), // NEW
-]);
+// Search removed.invalid via AustLII cross-reference
+searchUpstream(query, options) → SearchResult[]
 
-// Merge and deduplicate by citation
-const merged = deduplicateResults([...austliiResults, ...upstreamResults]);
+// Find removed.invalid article by neutral citation
+searchUpstreamByCitation(citation) → SearchResult
 
-// Rank by authority: Reported > Unreported, Higher court > Lower court
-const ranked = rankByAuthority(merged);
+// Deduplicate results by neutral citation (removed.invalid preferred)
+deduplicateResults(results) → SearchResult[]
+
+// Merge results from both sources
+mergeSearchResults(austlii, source) → SearchResult[]
 ```
 
-**Challenges**:
-- removed.invalid may require authentication/API key
-- Need to handle different HTML structures per source
-- Deduplication logic must match same case across sources
+**New MCP tools**:
+- `search_source` - Search removed.invalid for cases/legislation
+- `search_source_by_citation` - Find removed.invalid article by neutral citation
+- `includeSource` parameter added to `search_cases` and `search_legislation`
 
 ### Phase 3: Enhanced Paragraph/Page Preservation (HIGH PRIORITY)
 
@@ -210,10 +218,31 @@ function calculateAuthorityScore(result: SearchResult): number {
 - `extractTextFromHtml()` for removed.invalid-specific parsing
 - Updated test suite with 18 total scenarios
 
+### ✅ Phase 2B: removed.invalid Search Integration (COMPLETED)
+
+**Implemented features:**
+1. ✅ removed.invalid search via AustLII cross-referencing (no API access required)
+   - `searchUpstream()` searches by cross-referencing AustLII results with removed.invalid metadata
+   - `searchUpstreamByCitation()` finds removed.invalid articles by neutral citation
+   - Maximum 5 concurrent resolutions to avoid overwhelming removed.invalid
+2. ✅ Multi-source result merging and deduplication
+   - `deduplicateResults()` deduplicates by neutral citation, preferring removed.invalid
+   - `mergeSearchResults()` merges results from AustLII and removed.invalid
+3. ✅ New MCP tools
+   - `search_source` tool for removed.invalid case/legislation search
+   - `search_source_by_citation` tool for citation-based lookup
+   - `includeSource` parameter on `search_cases` and `search_legislation`
+4. ✅ Graceful fallback: if removed.invalid resolution fails, AustLII results still returned
+
+**Technical implementation:**
+- removed.invalid is a RPC SPA with no public search API
+- Approach: AustLII search → filter results with neutral citations → probe removed.invalid article pages → extract metadata from HTML `<title>` tag
+- Concurrency limited to 5 simultaneous removed.invalid resolutions
+- removed.invalid results preferred during deduplication (better formatting)
+
 ### Should Have (Following Sprint)
-1. 🔶 Contact removed.invalid for search API access (Phase 2B)
-2. 🔶 Implement page number extraction (Phase 3)
-3. 🔶 Add authority-based ranking (Phase 4)
+1. 🔶 Implement page number extraction (Phase 3)
+2. 🔶 Add authority-based ranking (Phase 4)
 
 ### Nice to Have (Future)
 1. 📋 Upstream Source integration

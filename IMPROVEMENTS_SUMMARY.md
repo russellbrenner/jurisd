@@ -28,6 +28,8 @@
 22. **Custom error usage** - Services use AustLiiError, NetworkError, ParseError, OcrError
 23. **Structured logging** - Services use logger instead of console.warn/error
 24. **Config/constants usage** - Services use config and constants instead of hardcoded values
+25. **removed.invalid search** - Search removed.invalid by cross-referencing AustLII results with removed.invalid metadata (no API required)
+26. **Multi-source merging** - Merge and deduplicate results from AustLII and removed.invalid
 
 ## 🟡 Remaining (Future Work)
 
