@@ -35,6 +35,8 @@
 29. **Coverage upload** - Codecov integration in CI pipeline
 30. **Husky / lint-staged** - Pre-commit hooks for ESLint and Prettier
 31. **TypeDoc** - API documentation generation configured
+32. **removed.invalid search** - Search removed.invalid by cross-referencing AustLII results with removed.invalid metadata (no API required)
+33. **Multi-source merging** - Merge and deduplicate results from AustLII and removed.invalid
 
 ## 🟡 Remaining (Future Work)
 

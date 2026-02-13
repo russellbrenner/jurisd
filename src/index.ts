@@ -8,6 +8,9 @@ import { searchAustLii } from "./services/austlii.js";
 import {
   resolveArticle,
   buildCitationLookupUrl,
+  searchUpstream,
+  searchUpstreamByCitation,
+  mergeSearchResults,
 } from "./services/source.js";
 
 const formatEnum = z.enum(["json", "text", "markdown", "html"]).default("json");
@@ -44,6 +47,7 @@ async function main() {
     sortBy: sortByEnum.optional(),
     method: legislationMethodEnum.optional(),
     offset: z.number().int().min(0).max(500).optional(),
+    includeSource: z.boolean().optional(),
   };
   const searchLegislationParser = z.object(searchLegislationShape);
 
@@ -52,21 +56,29 @@ async function main() {
     {
       title: "Search Legislation",
       description:
-        "Search Australian and New Zealand legislation. Jurisdictions: cth, vic, nsw, qld, sa, wa, tas, nt, act, federal, nz, other (all). Methods: auto, title (titles only), phrase (exact match), all (all words), any (any word), near (proximity), legis (legislation names). Use offset for pagination.",
+        "Search Australian and New Zealand legislation. Jurisdictions: cth, vic, nsw, qld, sa, wa, tas, nt, act, federal, nz, other (all). Methods: auto, title (titles only), phrase (exact match), all (all words), any (any word), near (proximity), legis (legislation names). Use offset for pagination. Set includeSource=true to also search removed.invalid and merge results.",
       inputSchema: searchLegislationShape,
     },
     async (rawInput) => {
-      const { query, jurisdiction, limit, format, sortBy, method, offset } =
+      const { query, jurisdiction, limit, format, sortBy, method, offset, includeSource } =
         searchLegislationParser.parse(rawInput);
-      const results = await searchAustLii(query, {
-        type: "legislation",
+      const options = {
+        type: "legislation" as const,
         jurisdiction,
         limit,
         sortBy,
         method,
         offset,
-      });
-      return formatSearchResults(results, format ?? "json");
+      };
+      const austliiResults = await searchAustLii(query, options);
+
+      if (includeSource) {
+        const upstreamResults = await searchUpstream(query, options);
+        const merged = mergeSearchResults(austliiResults, upstreamResults);
+        return formatSearchResults(merged, format ?? "json");
+      }
+
+      return formatSearchResults(austliiResults, format ?? "json");
     },
   );
 
@@ -78,6 +90,7 @@ async function main() {
     sortBy: sortByEnum.optional(),
     method: caseMethodEnum.optional(),
     offset: z.number().int().min(0).max(500).optional(),
+    includeSource: z.boolean().optional(),
   };
   const searchCasesParser = z.object(searchCasesShape);
 
@@ -86,21 +99,29 @@ async function main() {
     {
       title: "Search Cases",
       description:
-        "Search Australian and New Zealand case law. Jurisdictions: cth, vic, nsw, qld, sa, wa, tas, nt, act, federal, nz, other (all). Methods: auto, title (case names only), phrase (exact match), all (all words), any (any word), near (proximity), boolean. Sorting: auto (smart detection), relevance, date. Use offset for pagination (e.g., offset=50 for page 2).",
+        "Search Australian and New Zealand case law. Jurisdictions: cth, vic, nsw, qld, sa, wa, tas, nt, act, federal, nz, other (all). Methods: auto, title (case names only), phrase (exact match), all (all words), any (any word), near (proximity), boolean. Sorting: auto (smart detection), relevance, date. Use offset for pagination (e.g., offset=50 for page 2). Set includeSource=true to also search removed.invalid (Upstream Source) and merge results.",
       inputSchema: searchCasesShape,
     },
     async (rawInput) => {
-      const { query, jurisdiction, limit, format, sortBy, method, offset } =
+      const { query, jurisdiction, limit, format, sortBy, method, offset, includeSource } =
         searchCasesParser.parse(rawInput);
-      const results = await searchAustLii(query, {
-        type: "case",
+      const options = {
+        type: "case" as const,
         jurisdiction,
         limit,
         sortBy,
         method,
         offset,
-      });
-      return formatSearchResults(results, format ?? "json");
+      };
+      const austliiResults = await searchAustLii(query, options);
+
+      if (includeSource) {
+        const upstreamResults = await searchUpstream(query, options);
+        const merged = mergeSearchResults(austliiResults, upstreamResults);
+        return formatSearchResults(merged, format ?? "json");
+      }
+
+      return formatSearchResults(austliiResults, format ?? "json");
     },
   );
 
@@ -177,6 +198,89 @@ async function main() {
               null,
               2,
             ),
+          },
+        ],
+      };
+    },
+  );
+
+  const searchUpstreamShape = {
+    query: z.string().min(1, "Query cannot be empty."),
+    jurisdiction: jurisdictionEnum.optional(),
+    limit: z.number().int().min(1).max(50).optional(),
+    format: formatEnum.optional(),
+    sortBy: sortByEnum.optional(),
+    type: z.enum(["case", "legislation"]).default("case"),
+  };
+  const searchUpstreamParser = z.object(searchUpstreamShape);
+
+  server.registerTool(
+    "search_source",
+    {
+      title: "Search removed.invalid (Upstream Source)",
+      description:
+        "Search Australian legal materials on removed.invalid (Upstream Source). Works without API access by cross-referencing AustLII search results with removed.invalid article metadata. Returns results with removed.invalid URLs when articles are found. Best for finding cases with removed.invalid links. For direct citation lookup, use search_source_by_citation instead.",
+      inputSchema: searchUpstreamShape,
+    },
+    async (rawInput) => {
+      const { query, jurisdiction, limit, format, sortBy, type } =
+        searchUpstreamParser.parse(rawInput);
+      const results = await searchUpstream(query, {
+        type,
+        jurisdiction,
+        limit,
+        sortBy,
+      });
+      return formatSearchResults(results, format ?? "json");
+    },
+  );
+
+  const searchUpstreamByCitationShape = {
+    citation: z.string().min(1, "Citation cannot be empty."),
+    format: formatEnum.optional(),
+  };
+  const searchUpstreamByCitationParser = z.object(searchUpstreamByCitationShape);
+
+  server.registerTool(
+    "search_source_by_citation",
+    {
+      title: "Find removed.invalid Article by Citation",
+      description:
+        "Find a removed.invalid article by its neutral citation (e.g. '[2008] NSWSC 323', '[1992] HCA 23'). Resolves article metadata including case name, jurisdiction, and year from removed.invalid. Returns the removed.invalid article URL if found.",
+      inputSchema: searchUpstreamByCitationShape,
+    },
+    async (rawInput) => {
+      const { citation, format } = searchUpstreamByCitationParser.parse(rawInput);
+      const article = await searchUpstreamByCitation(citation);
+      if (!article) {
+        return {
+          content: [
+            {
+              type: "text" as const,
+              text: JSON.stringify(
+                { citation, found: false, message: "No removed.invalid article found for this citation." },
+                null,
+                2,
+              ),
+            },
+          ],
+        };
+      }
+      if (format === "text" || format === "markdown") {
+        return {
+          content: [
+            {
+              type: "text" as const,
+              text: `${article.title}\nCitation: ${article.neutralCitation ?? "N/A"}\nURL: ${article.url}\nJurisdiction: ${article.jurisdiction ?? "N/A"}\nYear: ${article.year ?? "N/A"}`,
+            },
+          ],
+        };
+      }
+      return {
+        content: [
+          {
+            type: "text" as const,
+            text: JSON.stringify({ citation, found: true, article }, null, 2),
           },
         ],
       };

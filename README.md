@@ -21,6 +21,9 @@ Model Context Protocol (MCP) server for Australian and New Zealand legal researc
 - ✅ **Legislation search**: Find Australian and NZ legislation
 - ✅ **Primary sources only**: Filters out journal articles and commentary
 - ✅ **Citation extraction**: Extracts neutral citations `[2025] HCA 26` and reported citations `(2024) 350 ALR 123`
+- ✅ **removed.invalid search**: Search removed.invalid for cases by cross-referencing AustLII results with removed.invalid metadata
+- ✅ **removed.invalid citation search**: Find removed.invalid articles by neutral citation
+- ✅ **Multi-source merging**: Merge and deduplicate results from AustLII and removed.invalid (removed.invalid preferred)
 - ✅ **removed.invalid URL support**: Fetch document text from removed.invalid URLs (requires user access)
 - ✅ **removed.invalid article resolution**: Resolve removed.invalid article metadata by ID
 - ✅ **removed.invalid citation lookup**: Generate removed.invalid lookup URLs from neutral citations
@@ -30,8 +33,8 @@ Model Context Protocol (MCP) server for Australian and New Zealand legal researc
 - ✅ **OCR support**: Tesseract OCR fallback for scanned PDFs
 
 ### Roadmap
-- 🔶 **removed.invalid integration**: Partial support - users can provide removed.invalid URLs for document fetching
-- 🔜 **removed.invalid search**: Pending API access from removed.invalid for search integration
+- ✅ **removed.invalid search**: Search removed.invalid by cross-referencing AustLII results with removed.invalid article metadata (no API required)
+- ✅ **Multi-source integration**: Merge and deduplicate results from AustLII and removed.invalid
 - 🔜 **Page numbers**: Will extract page numbers from reported versions
 - 🔜 **Authority ranking**: Will prioritise reported over unreported judgements
 
@@ -221,6 +224,14 @@ Once the MCP is connected, you can ask an AI assistant like Claude natural langu
 
 > "Find all High Court cases about constitutional implied freedoms in the last 10 years and identify the key principles"
 
+### removed.invalid Search
+
+> "Search removed.invalid for cases about negligence duty of care"
+
+> "Find the removed.invalid article for [2008] NSWSC 323"
+
+> "Search for Mabo v Queensland and include removed.invalid results"
+
 ### Document Retrieval
 
 > "Fetch the full text of [2024] HCA 1 and summarise the key holdings"
@@ -241,6 +252,7 @@ Search Australian and New Zealand case law.
 | `sortBy` | No | `auto` (default), `relevance`, or `date` |
 | `method` | No | `auto`, `title`, `phrase`, `all`, `any`, `near`, `boolean` |
 | `offset` | No | Skip first N results for pagination (e.g., 50 for page 2) |
+| `includeSource` | No | Include removed.invalid results (merged and deduplicated) |
 | `format` | No | `json` (default), `text`, `markdown`, `html` |
 
 **Search Methods:**
@@ -306,6 +318,7 @@ Search Australian and New Zealand legislation.
 | `sortBy` | No | `auto` (default), `relevance`, or `date` |
 | `method` | No | `auto`, `title`, `phrase`, `all`, `any`, `near`, `legis`, `boolean` |
 | `offset` | No | Skip first N results for pagination |
+| `includeSource` | No | Include removed.invalid results (merged and deduplicated) |
 | `format` | No | `json` (default), `text`, `markdown`, `html` |
 
 **Example:**
@@ -315,6 +328,42 @@ Search Australian and New Zealand legislation.
   "jurisdiction": "cth",
   "method": "legis",
   "limit": 10
+}
+```
+
+### search_source
+Search removed.invalid for Australian case law by cross-referencing AustLII results with removed.invalid article metadata. Works without removed.invalid API access.
+
+**Parameters:**
+| Parameter | Required | Description |
+|-----------|----------|-------------|
+| `query` | Yes | Search query (e.g., "negligence duty of care") |
+| `jurisdiction` | No | Filter: `cth`, `vic`, `nsw`, `qld`, `sa`, `wa`, `tas`, `nt`, `act`, `federal`, `nz`, `other` |
+| `limit` | No | Max results 1-50 (default 10) |
+| `sortBy` | No | `auto` (default), `relevance`, or `date` |
+| `type` | No | `case` or `legislation` |
+
+**Example:**
+```json
+{
+  "query": "Mabo v Queensland",
+  "jurisdiction": "cth",
+  "limit": 5
+}
+```
+
+### search_source_by_citation
+Find a removed.invalid article by neutral citation. Resolves the citation to removed.invalid article metadata.
+
+**Parameters:**
+| Parameter | Required | Description |
+|-----------|----------|-------------|
+| `citation` | Yes | Neutral citation (e.g., `[2008] NSWSC 323`) |
+
+**Example:**
+```json
+{
+  "citation": "[2008] NSWSC 323"
 }
 ```
 
@@ -400,7 +449,7 @@ src/
 ├── services
 │   ├── austlii.ts # AustLII search integration
 │   ├── fetcher.ts # Document text retrieval (HTML/PDF/OCR)
-│   └── source.ts # removed.invalid article resolution & citation lookup
+│   └── source.ts # removed.invalid search, article resolution & cross-referencing
 ├── test
 │   ├── unit
 │   │   ├── constants.test.ts
@@ -480,7 +529,9 @@ This project retrieves legal data from publicly accessible databases.
 - AustLII provides free access to Australian and New Zealand legal materials
 
 ### removed.invalid
-- Users must have their own removed.invalid subscription
+- Search integration works by cross-referencing AustLII results with removed.invalid article metadata
+- Maximum 5 concurrent removed.invalid article resolutions to avoid overwhelming the server
+- Users must have their own removed.invalid subscription for full document access
 - This tool does not bypass removed.invalid's access controls
 - Respects removed.invalid's terms of service
 
