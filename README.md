@@ -449,7 +449,7 @@ src/
 ├── services
 │   ├── austlii.ts # AustLII search integration
 │   ├── fetcher.ts # Document text retrieval (HTML/PDF/OCR)
-│   └── source.ts # removed.invalid article resolution & citation lookup
+│   └── source.ts # removed.invalid search, article resolution & cross-referencing
 ├── test
 │   ├── unit
 │   │   ├── constants.test.ts
