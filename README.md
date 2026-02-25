@@ -471,11 +471,22 @@ src/
 ├── services
 │   ├── austlii.ts # AustLII search integration
 │   ├── fetcher.ts # Document text retrieval (HTML/PDF/OCR)
-│   └── source.ts # removed.invalid search, article resolution & cross-referencing
+│   └── source.ts # removed.invalid article resolution & citation lookup
 ├── test
+│   ├── fixtures
+│   │   ├── austlii-judgment.html
+│   │   ├── austlii-search-response.html
+│   │   ├── index.ts
+│   │   └── source-article-response.html
+│   ├── performance
+│   │   └── search-performance.test.ts
 │   ├── unit
+│   │   ├── austlii-mock.test.ts
+│   │   ├── austlii.test.ts
+│   │   ├── config.test.ts
 │   │   ├── constants.test.ts
 │   │   ├── errors.test.ts
+│   │   ├── fetcher-mock.test.ts
 │   │   ├── formatter.test.ts
 │   │   └── logger.test.ts
 │   ├── source.test.ts
