@@ -6,7 +6,7 @@ Model Context Protocol (MCP) server for Australian and New Zealand legal researc
   <img width="380" height="200" src="https://glama.ai/mcp/servers/@russellbrenner/auslaw-mcp/badge" alt="AusLaw MCP server" />
 </a>
 
-**Status**: ✅ Working MVP with intelligent search relevance
+**Status**: ✅ Full-featured with AGLC4 citation service, removed.invalid authentication, and security hardening
 
 ## Features
 
@@ -21,19 +21,21 @@ Model Context Protocol (MCP) server for Australian and New Zealand legal researc
 - ✅ **Legislation search**: Find Australian and NZ legislation
 - ✅ **Primary sources only**: Filters out journal articles and commentary
 - ✅ **Citation extraction**: Extracts neutral citations `[2025] HCA 26` and reported citations `(2024) 350 ALR 123`
-- ✅ **removed.invalid URL support**: Fetch document text from removed.invalid URLs (requires user access)
-- ✅ **Paragraph preservation**: Keeps `[N]` paragraph numbers for pinpoint citations
+- ✅ **AGLC4 citation formatting**: Format, validate, and generate pinpoint citations per AGLC4 rules
+- ✅ **removed.invalid authenticated fetch**: Fetch full judgment text from removed.invalid using your session cookie
+- ✅ **Paragraph blocks**: `[N]` paragraph markers extracted as structured blocks for pinpoint citations
+- ✅ **Authority-based ranking**: Results ranked by court hierarchy (HCA > FCAFC > FCA > state courts)
 - ✅ **Multiple formats**: JSON, text, markdown, or HTML output
 - ✅ **Document retrieval**: Full text from HTML and PDF sources (AustLII, removed.invalid)
 - ✅ **OCR support**: Tesseract OCR fallback for scanned PDFs
+- ✅ **SSRF protection**: URL allowlist restricts fetches to AustLII and removed.invalid only
+- ✅ **Rate limiting**: 10 req/min for AustLII, 5 req/min for removed.invalid
 
 ### Roadmap
-- 🔶 **removed.invalid integration**: Partial support - users can provide removed.invalid URLs for document fetching
-- 🔜 **removed.invalid search**: Pending API access from removed.invalid for search integration
-- 🔜 **Page numbers**: Will extract page numbers from reported versions
-- 🔜 **Authority ranking**: Will prioritise reported over unreported judgements
+- 🔶 **removed.invalid search**: Pending API access from removed.invalid for search integration (fetch is fully supported)
+- 🔜 **Upstream Source**: Integration with Upstream Source databases
 
-See [ROADMAP.md](docs/ROADMAP.md) for detailed development plans.
+See [ROADMAP.md](docs/ROADMAP.md) for the full development history and future plans.
 
 ## Quick Start
 
@@ -272,6 +274,89 @@ Fetch full text from a case or legislation URL. Supports HTML and PDF with OCR f
 }
 ```
 
+### format_citation
+Format an Australian case citation per AGLC4 rules.
+
+**Parameters:**
+| Parameter | Required | Description |
+|-----------|----------|-------------|
+| `title` | Yes | Case name, e.g. `Mabo v Queensland (No 2)` |
+| `neutralCitation` | No | Neutral citation, e.g. `[1992] HCA 23` |
+| `reportedCitation` | No | Reported citation, e.g. `(1992) 175 CLR 1` |
+| `pinpoint` | No | Pinpoint reference, e.g. `[20]` |
+| `style` | No | `combined` (default), `neutral`, or `reported` |
+
+**Example:**
+```json
+{
+  "title": "Mabo v Queensland (No 2)",
+  "neutralCitation": "[1992] HCA 23",
+  "reportedCitation": "(1992) 175 CLR 1",
+  "pinpoint": "[64]"
+}
+```
+
+**Output:** `Mabo v Queensland (No 2) [1992] HCA 23, (1992) 175 CLR 1 at [64]`
+
+### validate_citation
+Validate a neutral citation by checking it exists on AustLII.
+
+**Parameters:**
+| Parameter | Required | Description |
+|-----------|----------|-------------|
+| `citation` | Yes | Neutral citation to validate, e.g. `[1992] HCA 23` |
+
+**Returns:** `{ valid, canonicalCitation, austliiUrl, message }`
+
+### generate_pinpoint
+Fetch a judgment from AustLII and generate a pinpoint citation to a specific paragraph.
+
+**Parameters:**
+| Parameter | Required | Description |
+|-----------|----------|-------------|
+| `url` | Yes | AustLII document URL |
+| `paragraphNumber` | No* | Paragraph number to locate |
+| `phrase` | No* | Phrase to search for within paragraphs |
+| `caseCitation` | No | Case citation to prepend (e.g. `[1992] HCA 23`) |
+
+*At least one of `paragraphNumber` or `phrase` is required.
+
+**Example:**
+```json
+{
+  "url": "https://www.austlii.edu.au/cgi-bin/viewdoc/au/cases/cth/HCA/1992/23.html",
+  "phrase": "native title",
+  "caseCitation": "[1992] HCA 23"
+}
+```
+
+**Output:** `{ paragraphNumber: 64, pinpointString: "at [64]", fullCitation: "[1992] HCA 23 at [64]" }`
+
+### search_by_citation
+Find a case by its citation. If a neutral citation is detected, validates against AustLII directly; otherwise falls back to text search.
+
+**Parameters:**
+| Parameter | Required | Description |
+|-----------|----------|-------------|
+| `citation` | Yes | Citation or case name, e.g. `[1992] HCA 23` or `Mabo v Queensland` |
+| `format` | No | `json` (default), `text`, `markdown`, `html` |
+
+### resolve_source_article
+Resolve metadata for a removed.invalid article by its numeric ID.
+
+**Parameters:**
+| Parameter | Required | Description |
+|-----------|----------|-------------|
+| `articleId` | Yes | removed.invalid article ID (integer) |
+
+### source_citation_lookup
+Generate a removed.invalid lookup URL for a given neutral citation.
+
+**Parameters:**
+| Parameter | Required | Description |
+|-----------|----------|-------------|
+| `citation` | Yes | Neutral citation, e.g. `[2008] NSWSC 323` |
+
 ## Jurisdictions
 
 | Code | Jurisdiction |
@@ -305,27 +390,33 @@ Test scenarios include:
 
 ```
 src/
-├── index.ts              # MCP server & tool registration
+├── index.ts              # MCP server & tool registration (9 tools)
 ├── config.ts             # Configuration management
+├── constants.ts          # Citation patterns, court codes, reporters
 ├── services/
-│   ├── austlii.ts       # AustLII search integration
-│   └── fetcher.ts       # Document text retrieval
+│   ├── austlii.ts        # AustLII search and authority scoring
+│   ├── citation.ts       # AGLC4 citation formatting, validation, pinpoints
+│   ├── fetcher.ts        # Document retrieval (HTML, PDF, OCR, removed.invalid)
+│   └── source.ts           # removed.invalid article resolution and enrichment
 ├── utils/
-│   └── formatter.ts     # Output formatting
+│   ├── formatter.ts      # MCP response formatting (json/text/markdown/html)
+│   ├── rate-limiter.ts   # Token bucket rate limiter (AustLII, removed.invalid)
+│   └── url-guard.ts      # SSRF protection (HTTPS-only, allowlisted hosts)
 └── test/
-    └── scenarios.test.ts # Integration tests
+    ├── source.test.ts       # removed.invalid integration tests
+    ├── scenarios.test.ts  # End-to-end search scenarios (live network)
+    └── unit/              # Unit tests (153 tests, 79% coverage)
+        ├── austlii.test.ts
+        ├── citation.test.ts
+        ├── config.test.ts
+        ├── fetcher.test.ts
+        ├── formatter.test.ts
+        ├── rate-limiter.test.ts
+        └── url-guard.test.ts
 
-k8s/
-├── namespace.yaml        # Kubernetes namespace
-├── configmap.yaml        # Configuration for k8s
-├── deployment.yaml       # Deployment specification
-├── service.yaml          # Service definition
-└── README.md            # Kubernetes deployment guide
-
-docs/
-├── DOCKER.md            # Docker deployment guide
-├── architecture.md      # Architecture documentation
-└── ROADMAP.md          # Development roadmap
+plans/                    # Session implementation plans (git-tracked)
+k8s/                      # Kubernetes deployment manifests
+docs/                     # Architecture, Docker, and roadmap docs
 ```
 
 ## Deployment
@@ -365,8 +456,33 @@ All configuration can be customized via environment variables:
 - `MAX_SEARCH_LIMIT` - Maximum search results
 - `DEFAULT_OUTPUT_FORMAT` - Default format (json/text/markdown/html)
 - `DEFAULT_SORT_BY` - Default sort order (auto/relevance/date)
+- `SESSION_COOKIE` - removed.invalid authenticated session cookie (see below)
 
 See [config.yaml](config.yaml) for defaults and `.env.example` for a template.
+
+### removed.invalid Authenticated Access
+
+removed.invalid requires a subscription. To enable authenticated document fetching:
+
+1. Log in to [removed.invalid](https://removed.invalid) in your browser.
+2. Open DevTools (F12) and go to the **Application** (Chrome) or **Storage** (Firefox) tab.
+3. Under **Cookies** > `https://removed.invalid`, find the session cookie (typically named `SESSIONAUTH` or similar).
+4. Copy the full `Name=Value` string.
+5. Set the environment variable:
+
+```bash
+export SESSION_COOKIE="SESSIONAUTH=abc123..."
+```
+
+For Kubernetes deployment, add this to your ConfigMap or a Secret:
+
+```yaml
+# k8s/configmap.yaml
+data:
+  SESSION_COOKIE: "SESSIONAUTH=abc123..."
+```
+
+**Security:** Treat this cookie like a password. It grants access to your removed.invalid subscription. Do not commit it to version control.
 
 ## Data Sources and Attribution
 

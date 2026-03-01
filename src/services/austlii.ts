@@ -58,7 +58,7 @@ const AUSTLII_HEADERS = {
   "Accept-Language": "en-AU,en;q=0.9",
 };
 
-interface SearchParams {
+export interface SearchParams {
   query: string;
   meta: string;
   mask_path?: string;
@@ -98,7 +98,7 @@ export function calculateAuthorityScore(result: SearchResult): number {
  * Extracts reported citation from text.
  * Uses REPORTED_CITATION_PATTERNS from constants.
  */
-function extractReportedCitation(text: string): string | undefined {
+export function extractReportedCitation(text: string): string | undefined {
   for (const pattern of REPORTED_CITATION_PATTERNS) {
     const match = text.match(pattern);
     if (match) {
@@ -112,7 +112,7 @@ function extractReportedCitation(text: string): string | undefined {
  * Detects if a query looks like a case name (e.g., "X v Y", "Re X")
  * These queries benefit from relevance sorting to find the specific case
  */
-function isCaseNameQuery(query: string): boolean {
+export function isCaseNameQuery(query: string): boolean {
   // Pattern 1: "X v Y" or "X v. Y" (party vs party)
   if (/\b\w+\s+v\.?\s+\w+/i.test(query)) {
     return true;
@@ -139,7 +139,7 @@ function isCaseNameQuery(query: string): boolean {
 /**
  * Determines the appropriate sort mode based on query and options
  */
-function determineSortMode(query: string, options: SearchOptions): "relevance" | "date" {
+export function determineSortMode(query: string, options: SearchOptions): "relevance" | "date" {
   // If explicitly set, use that
   if (options.sortBy === "relevance") {
     return "relevance";
@@ -161,7 +161,7 @@ function determineSortMode(query: string, options: SearchOptions): "relevance" |
   return "date";
 }
 
-function buildSearchParams(query: string, options: SearchOptions): SearchParams {
+export function buildSearchParams(query: string, options: SearchOptions): SearchParams {
   // Determine virtual concordance based on jurisdiction
   // /au for Australian, /nz for New Zealand, /austlii for both
   let meta = "/au";
@@ -401,7 +401,7 @@ export async function searchAustLii(
  * Boosts results where the title closely matches the query
  * This helps prioritize the actual case being searched for
  */
-function boostTitleMatches(results: SearchResult[], query: string): SearchResult[] {
+export function boostTitleMatches(results: SearchResult[], query: string): SearchResult[] {
   // Extract case name patterns from query
   const normalizedQuery = query
     .toLowerCase()
