@@ -1,7 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import axios from "axios";
 import { parseCitation, formatAGLC4, isValidNeutralCitation, isValidReportedCitation, shortFormAGLC4, normaliseCitation, validateCitation, generatePinpoint } from "../../services/citation.js";
-import { COURT_TO_AUSTLII_PATH } from "../../constants.js";
 import type { ParagraphBlock } from "../../services/fetcher.js";
 
 describe("parseCitation", () => {
