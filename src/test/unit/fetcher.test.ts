@@ -36,35 +36,22 @@ describe("fetchDocumentText", () => {
     mockConfig.source.sessionCookie = undefined;
   });
 
-  it("injects Cookie header for removed.invalid when sessionCookie configured", async () => {
-    mockConfig.source.sessionCookie = "SESSIONAUTH=abc123";
-
-    vi.mocked(axios.get).mockResolvedValueOnce({
-      data: Buffer.from("<html><body>" + "x".repeat(300) + "</body></html>"),
-      headers: { "content-type": "text/html" },
-      status: 200,
-    });
-
-    await fetchDocumentText("https://removed.invalid/article/68901");
-
-    expect(axios.get).toHaveBeenCalledWith(
-      "https://removed.invalid/article/68901",
-      expect.objectContaining({
-        headers: expect.objectContaining({ Cookie: "SESSIONAUTH=abc123" }),
-      }),
+  it("throws immediately for removed.invalid URLs without making any HTTP request", async () => {
+    // removed.invalid is a RPC SPA; HTTP fetch only returns a JS bootstrap shell, not judgment text.
+    // We reject early so callers get a clear error rather than empty content.
+    await expect(fetchDocumentText("https://removed.invalid/article/68901")).rejects.toThrow(
+      /fetch_document_text does not support source\.io/i,
     );
+    expect(axios.get).not.toHaveBeenCalled();
   });
 
-  it("throws helpful error on removed.invalid 401 when no cookie set", async () => {
-    const err = Object.assign(new Error("Request failed with status code 401"), {
-      response: { status: 401 },
-    });
-    vi.mocked(axios.get).mockRejectedValueOnce(err);
-    vi.mocked(axios.isAxiosError).mockReturnValue(true);
+  it("throws immediately for removed.invalid URLs regardless of session cookie config", async () => {
+    mockConfig.source.sessionCookie = "alcsessionid=abc123";
 
     await expect(fetchDocumentText("https://removed.invalid/article/12345")).rejects.toThrow(
-      /SESSION_COOKIE/,
+      /RPC single-page application/i,
     );
+    expect(axios.get).not.toHaveBeenCalled();
   });
 
   it("extracts paragraph blocks from AustLII HTML with [N] markers", async () => {
