@@ -5,20 +5,13 @@ metadata:
   name: auslaw-mcp
   namespace: auslaw-mcp
   labels:
-    app: auslaw-mcp
+    app.kubernetes.io/name: auslaw-mcp
 spec:
   type: ClusterIP
   selector:
-    app: auslaw-mcp
-  # Note: MCP servers use stdio and don't expose HTTP ports
-  # This service is a placeholder for potential future features
-  # or for internal cluster DNS resolution
+    app.kubernetes.io/name: auslaw-mcp
   ports:
-  - name: placeholder
-    port: 3000
-    targetPort: 3000
-    protocol: TCP
-  sessionAffinity: ClientIP
-  sessionAffinityConfig:
-    clientIP:
-      timeoutSeconds: 10800
+    - name: http
+      port: 3000
+      targetPort: 3000
+      protocol: TCP

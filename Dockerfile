@@ -42,8 +42,8 @@ RUN addgroup -g 1001 -S nodejs && \
 
 USER nodejs
 
-# Expose the MCP server (runs via stdio, no port needed but adding for documentation)
-# MCP servers communicate via stdin/stdout, not network ports
+# Expose HTTP transport port (used when MCP_TRANSPORT=http)
+EXPOSE 3000
 
 # Set environment variables with defaults
 ENV NODE_ENV=production \

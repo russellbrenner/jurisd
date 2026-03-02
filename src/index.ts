@@ -1,5 +1,7 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
+import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
+import { createServer } from "node:http";
 import { z } from "zod";
 
 import { formatFetchResponse, formatSearchResults } from "./utils/formatter.js";
@@ -356,8 +358,35 @@ async function main() {
     },
   );
 
-  const transport = new StdioServerTransport();
-  await server.connect(transport);
+  if (process.env.MCP_TRANSPORT === "http") {
+    const transport = new StreamableHTTPServerTransport({ sessionIdGenerator: undefined });
+    await server.connect(transport);
+    const port = parseInt(process.env.PORT ?? "3000", 10);
+    createServer(async (req, res) => {
+      if (req.url === "/health") {
+        res.writeHead(200, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ status: "ok" }));
+        return;
+      }
+      try {
+        const chunks: Buffer[] = [];
+        for await (const chunk of req) chunks.push(chunk as Buffer);
+        const bodyStr = Buffer.concat(chunks).toString();
+        const body = bodyStr ? (JSON.parse(bodyStr) as Record<string, unknown>) : undefined;
+        await transport.handleRequest(req, res, body);
+      } catch (err) {
+        if (!res.headersSent) {
+          res.writeHead(500);
+          res.end("Internal server error");
+        }
+      }
+    }).listen(port, () => {
+      console.error(`auslaw-mcp HTTP transport listening on :${port}`);
+    });
+  } else {
+    const transport = new StdioServerTransport();
+    await server.connect(transport);
+  }
 }
 
 main().catch((error) => {
