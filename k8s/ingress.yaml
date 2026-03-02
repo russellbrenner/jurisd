@@ -1,0 +1,25 @@
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: auslaw-mcp
+  namespace: auslaw-mcp
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+    traefik.ingress.kubernetes.io/router.entrypoints: websecure
+spec:
+  tls:
+    - hosts:
+        - auslaw.itsa.house
+      secretName: auslaw-mcp-tls
+  rules:
+    - host: auslaw.itsa.house
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: auslaw-mcp
+                port:
+                  number: 3000

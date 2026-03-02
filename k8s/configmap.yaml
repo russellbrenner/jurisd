@@ -26,6 +26,9 @@ data:
   
   # Node Environment
   NODE_ENV: "production"
+
+  # Transport: http for k8s deployment, stdio for local MCP usage
+  MCP_TRANSPORT: "http"
   
   # config.yaml content
   config.yaml: |
