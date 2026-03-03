@@ -28,3 +28,13 @@ export const PROPOSE_CITABLES_RICE = readFileSync(
   join(__dirname, "propose-citables-rice.txt"),
   "utf-8",
 );
+
+export const PROPOSE_CITABLES_KOZAROV = readFileSync(
+  join(__dirname, "propose-citables-kozarov.txt"),
+  "utf-8",
+);
+
+export const PROPOSE_CITABLES_ROGERS = readFileSync(
+  join(__dirname, "propose-citables-rogers.txt"),
+  "utf-8",
+);
