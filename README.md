@@ -23,6 +23,7 @@ Model Context Protocol (MCP) server for Australian and New Zealand legal researc
 - ✅ **Citation extraction**: Extracts neutral citations `[2025] HCA 26` and reported citations `(2024) 350 ALR 123`
 - ✅ **AGLC4 citation formatting**: Format, validate, and generate pinpoint citations per AGLC4 rules
 - ✅ **removed.invalid authenticated fetch**: Fetch full judgment text from removed.invalid using your session cookie
+- ✅ **removed.invalid search**: Case search via `resolveRecords` RPC (reverse-engineered); results merged with AustLII, deduplicated by neutral citation. Requires `SESSION_COOKIE`.
 - ✅ **Paragraph blocks**: `[N]` paragraph markers extracted as structured blocks for pinpoint citations
 - ✅ **Authority-based ranking**: Results ranked by court hierarchy (HCA > FCAFC > FCA > state courts)
 - ✅ **Multiple formats**: JSON, text, markdown, or HTML output
@@ -33,7 +34,8 @@ Model Context Protocol (MCP) server for Australian and New Zealand legal researc
 
 ### Roadmap
 
-- 🔶 **removed.invalid search**: Pending API access from removed.invalid for search integration (authenticated document fetch is fully supported)
+- ✅ **removed.invalid search**: Implemented via reverse-engineered `resolveRecords` RPC — requires `SESSION_COOKIE`
+- 🔶 **Upstream Source integration**: Requires contacting Upstream for API access
 
 See [docs/ROADMAP.md](docs/ROADMAP.md) for the full development history and future plans.
 
