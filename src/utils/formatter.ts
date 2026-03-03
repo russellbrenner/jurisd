@@ -101,6 +101,7 @@ export function formatFetchResponse(
     case "json": {
       // Omit the bulky html field from JSON output; consumers should
       // request format=html when they need the styled document.
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
       const { html: _html, ...jsonSafe } = response;
       return {
         content: ensureContent(JSON.stringify(jsonSafe, null, 2)),
