@@ -35,6 +35,17 @@ Model Context Protocol (MCP) server for Australian and New Zealand legal researc
 
 See [docs/ROADMAP.md](docs/ROADMAP.md) for the full development history and future plans.
 
+## Documentation
+
+| Document | Description |
+|----------|-------------|
+| [ARCHITECTURE.md](docs/ARCHITECTURE.md) | System architecture, deployment topology, CI/CD pipeline, production patterns |
+| [DECISIONS.md](docs/DECISIONS.md) | Architectural decision records (ADRs) with context and consequences |
+| [AGENT-GUIDE.md](docs/AGENT-GUIDE.md) | Agent-facing usage guide with tool catalog and examples |
+| [DOCKER.md](docs/DOCKER.md) | Docker deployment guide |
+| [ROADMAP.md](docs/ROADMAP.md) | Development history and future plans |
+| [source-rpc-protocol.md](docs/source-rpc-protocol.md) | removed.invalid RPC reverse-engineering details |
+
 ## Quick Start
 
 ### Local Development
