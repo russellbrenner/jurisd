@@ -20,4 +20,6 @@ import path from "node:path";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 // `here` is .../dist after build, .../src in dev — `..` lands at project root.
-dotenvConfig({ path: path.join(here, "..", ".env") });
+// `quiet: true` suppresses dotenv v17+'s "◇ injected env..." tip line, which
+// otherwise goes to stdout and corrupts the MCP stdio JSON-RPC stream.
+dotenvConfig({ path: path.join(here, "..", ".env"), quiet: true });
