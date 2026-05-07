@@ -3,6 +3,7 @@ import * as cheerio from "cheerio";
 import { config } from "../config.js";
 import { REPORTED_CITATION_PATTERNS } from "../constants.js";
 import { austliiRateLimiter } from "../utils/rate-limiter.js";
+import { withCookieRefreshRetry, AustliiPersistentAuthError } from "./cookie-refresh.js";
 
 export interface SearchResult {
   title: string;
@@ -55,6 +56,11 @@ export interface SearchOptions {
 // AustLII is fronted by Cloudflare's bot challenge: when AUSTLII_COOKIE is set
 // (typically `cf_clearance=...; __cf_bm=...` captured from a browser session),
 // it is sent as the Cookie header so requests pass the challenge.
+//
+// AUSTLII_COOKIE is read from process.env on every call rather than from the
+// frozen config, because the cookie-refresh self-heal updates process.env at
+// runtime and we want subsequent requests to pick up the new value without
+// a server restart.
 export function buildAustliiHeaders(): Record<string, string> {
   const headers: Record<string, string> = {
     "User-Agent": config.austlii.userAgent,
@@ -62,24 +68,51 @@ export function buildAustliiHeaders(): Record<string, string> {
     Accept: "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
     "Accept-Language": "en-AU,en;q=0.9",
   };
-  if (config.austlii.cookie) {
-    headers.Cookie = config.austlii.cookie;
+  const cookie = process.env.AUSTLII_COOKIE;
+  if (cookie) {
+    headers.Cookie = cookie;
   }
   return headers;
 }
 
 /**
- * Standardised 403/401 error message for AustLII Cloudflare blocks. Surfacing
- * this to the user is more useful than the raw axios message.
+ * Standardised 401/403 error message for AustLII Cloudflare blocks. Two
+ * variants:
+ *
+ * - `firstTry`: the original error before any refresh attempt. Should rarely
+ *   reach the model — the server's retry-on-403 will swallow it if a refresh
+ *   from Chrome's cookie store helps. Kept for paths that don't go through
+ *   the retry wrapper (none currently, but defensive).
+ * - `afterRefresh`: emitted when a refresh ran but the retried request *also*
+ *   failed. This means Chrome's stored cookies are also stale and the only
+ *   way to revive them is to have Chrome navigate to AustLII (which silently
+ *   passes Cloudflare and refreshes Chrome's cookie store).
  */
-export function austliiCloudflareErrorMessage(status: number, context: string): string {
-  const cookieState = config.austlii.cookie ? "may have expired" : "is not set";
+export function austliiCloudflareErrorMessage(
+  status: number,
+  context: string,
+  variant: "firstTry" | "afterRefresh" = "firstTry",
+): string {
+  const cookieState = process.env.AUSTLII_COOKIE ? "may have expired" : "is not set";
+  if (variant === "afterRefresh") {
+    return (
+      `AustLII returned ${status} on ${context} and the auto-refresh from Chrome's ` +
+      `cookie store didn't recover it — Chrome's stored cookies are also stale. ` +
+      `To fix: open https://www.austlii.edu.au/ in Chrome (any tab; if Cloudflare ` +
+      `presents a "Just a moment..." page, wait a few seconds for it to clear ` +
+      `automatically). Then retry the original request — the server will pick up ` +
+      `Chrome's freshly-refreshed cookies on the next call. If you have the ` +
+      `Claude in Chrome MCP available in your session, you can do this navigation ` +
+      `via mcp__Claude_in_Chrome__navigate without leaving the conversation.`
+    );
+  }
   return (
     `AustLII returned ${status} on ${context}. This is almost certainly Cloudflare's ` +
-    `bot challenge. AUSTLII_COOKIE ${cookieState} — capture cf_clearance (and __cf_bm) ` +
-    `from a real browser session at https://www.austlii.edu.au/ and set AUSTLII_COOKIE ` +
-    `to "cf_clearance=...; __cf_bm=...". Also set AUSTLII_USER_AGENT to the same ` +
-    `browser's navigator.userAgent — the cookie is bound to that exact UA.`
+    `bot challenge. AUSTLII_COOKIE ${cookieState}. The server attempts to auto-refresh ` +
+    `cookies from Chrome's cookie store on 403; if you're seeing this message, the ` +
+    `auto-refresh wasn't able to run (refresh script missing or Keychain access denied). ` +
+    `Check that scripts/refresh-austlii-cookie.mjs exists and that the Keychain prompt ` +
+    `has been approved.`
   );
 }
 
@@ -303,10 +336,12 @@ export async function searchAustLii(
     }
 
     await austliiRateLimiter.throttle();
-    const response = await axios.get(searchUrl.toString(), {
-      headers: buildAustliiHeaders(),
-      timeout: config.austlii.timeout,
-    });
+    const response = await withCookieRefreshRetry(() =>
+      axios.get(searchUrl.toString(), {
+        headers: buildAustliiHeaders(),
+        timeout: config.austlii.timeout,
+      }),
+    );
 
     const html = response.data;
     const $ = cheerio.load(html);
@@ -423,10 +458,13 @@ export async function searchAustLii(
 
     return finalResults.slice(0, limit);
   } catch (error) {
+    if (error instanceof AustliiPersistentAuthError) {
+      throw new Error(austliiCloudflareErrorMessage(error.status, "search", "afterRefresh"));
+    }
     if (axios.isAxiosError(error)) {
       const status = error.response?.status;
       if (status === 403 || status === 401) {
-        throw new Error(austliiCloudflareErrorMessage(status, "search"));
+        throw new Error(austliiCloudflareErrorMessage(status, "search", "firstTry"));
       }
       throw new Error(`AustLII search failed: ${error.message}`);
     }

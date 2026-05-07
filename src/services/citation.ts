@@ -15,6 +15,7 @@ import {
 } from "../constants.js";
 import type { ParagraphBlock } from "./fetcher.js";
 import { buildAustliiHeaders, austliiCloudflareErrorMessage } from "./austlii.js";
+import { withCookieRefreshRetry, AustliiPersistentAuthError } from "./cookie-refresh.js";
 
 export interface ParsedCitation {
   neutralCitation?: string;
@@ -252,20 +253,32 @@ export async function validateCitation(citation: string): Promise<CitationValida
     // requests outright (returns 403) while allowing GETs. The Range header
     // keeps the response small — we only need to see whether the resource
     // exists, not download the whole judgment.
-    await axios.get(url, {
-      headers: { ...buildAustliiHeaders(), Range: "bytes=0-1023" },
-      timeout: 10000,
-      // Accept 206 (partial) and 200; Cloudflare may ignore Range and return 200.
-      validateStatus: (s) => s === 200 || s === 206,
-    });
+    //
+    // The withCookieRefreshRetry wrapper handles automatic cookie refresh
+    // (from Chrome's cookie store) on 401/403 — the model never sees the
+    // 403 in the common case where Chrome holds fresher cookies than .env.
+    await withCookieRefreshRetry(() =>
+      axios.get(url, {
+        headers: { ...buildAustliiHeaders(), Range: "bytes=0-1023" },
+        timeout: 10000,
+        // Accept 206 (partial) and 200; Cloudflare may ignore Range and return 200.
+        validateStatus: (s) => s === 200 || s === 206,
+      }),
+    );
     return { valid: true, canonicalCitation: normalised, austliiUrl: url };
   } catch (error) {
-    // Surface a useful 403 message so callers know to set AUSTLII_COOKIE
-    // rather than misreading a Cloudflare block as "citation not found".
+    // Persistent auth error (refresh ran but retry also 401/403) — emit the
+    // "open Chrome" guidance so the user can reseat cookies in their browser.
+    if (error instanceof AustliiPersistentAuthError) {
+      throw new Error(
+        austliiCloudflareErrorMessage(error.status, "citation validation", "afterRefresh"),
+      );
+    }
+    // Surface a useful 403 message when refresh wasn't even attempted.
     if (axios.isAxiosError(error)) {
       const status = error.response?.status;
       if (status === 403 || status === 401) {
-        throw new Error(austliiCloudflareErrorMessage(status, "citation validation"));
+        throw new Error(austliiCloudflareErrorMessage(status, "citation validation", "firstTry"));
       }
     }
     return {

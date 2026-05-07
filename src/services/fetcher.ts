@@ -15,6 +15,7 @@ import { config } from "../config.js";
 import { MAX_CONTENT_LENGTH } from "../constants.js";
 import { isJadeUrl, extractArticleId, fetchJadeArticleContent } from "./jade.js";
 import { buildAustliiHeaders, austliiCloudflareErrorMessage } from "./austlii.js";
+import { withCookieRefreshRetry, AustliiPersistentAuthError } from "./cookie-refresh.js";
 import { assertFetchableUrl } from "../utils/url-guard.js";
 import { austliiRateLimiter, jadeRateLimiter } from "../utils/rate-limiter.js";
 
@@ -324,16 +325,22 @@ export async function fetchDocumentText(url: string): Promise<FetchResponse> {
     // AustLII rejects non-browser User-Agents with 403, so send the same
     // browser-like headers used by the search path. Other allowed hosts get
     // the lightweight jade UA.
-    const headers: Record<string, string> = isAustliiUrl(url)
-      ? buildAustliiHeaders()
-      : { "User-Agent": config.jade.userAgent };
+    const isAustlii = isAustliiUrl(url);
+    const buildRequest = () =>
+      axios.get(url, {
+        responseType: "arraybuffer",
+        // Re-evaluate headers each retry — buildAustliiHeaders() reads
+        // AUSTLII_COOKIE from process.env, which the cookie-refresh path
+        // updates on 403.
+        headers: isAustlii ? buildAustliiHeaders() : { "User-Agent": config.jade.userAgent },
+        timeout: config.jade.timeout,
+        maxContentLength: MAX_CONTENT_LENGTH,
+      });
 
-    const response = await axios.get(url, {
-      responseType: "arraybuffer",
-      headers,
-      timeout: config.jade.timeout,
-      maxContentLength: MAX_CONTENT_LENGTH,
-    });
+    // For AustLII URLs, wrap the request in the cookie-refresh-and-retry
+    // helper so 401/403 responses self-heal silently. Other hosts go through
+    // the bare call (jade has its own session-cookie error path below).
+    const response = isAustlii ? await withCookieRefreshRetry(buildRequest) : await buildRequest();
 
     const buffer = Buffer.from(response.data);
     const rawContentType = response.headers["content-type"];
@@ -389,6 +396,13 @@ export async function fetchDocumentText(url: string): Promise<FetchResponse> {
       lastModified: (response.headers["last-modified"] as string) ?? undefined,
     };
   } catch (error) {
+    // AustLII auth errors take priority — distinguish "refresh ran but didn't
+    // recover" from "refresh wasn't attempted/script missing".
+    if (error instanceof AustliiPersistentAuthError) {
+      throw new Error(
+        austliiCloudflareErrorMessage(error.status, "document fetch", "afterRefresh"),
+      );
+    }
     if (axios.isAxiosError(error)) {
       const status = error.response?.status;
       if (isJadeUrl(url) && (status === 401 || status === 403)) {
@@ -397,7 +411,7 @@ export async function fetchDocumentText(url: string): Promise<FetchResponse> {
         );
       }
       if (isAustliiUrl(url) && (status === 401 || status === 403)) {
-        throw new Error(austliiCloudflareErrorMessage(status, "document fetch"));
+        throw new Error(austliiCloudflareErrorMessage(status, "document fetch", "firstTry"));
       }
       throw new Error(`Failed to fetch document from ${url}: ${error.message}`);
     }

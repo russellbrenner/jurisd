@@ -18,33 +18,40 @@ npm run lint:fix       # Auto-fix lint issues
 - Unit tests must all pass before committing; integration/perf test failures from network timeouts are acceptable
 - ESLint uses flat config (`eslint.config.mjs`), NOT legacy `.eslintrc`
 
-## When auslaw-mcp returns a 403 (Cloudflare cookie expired)
+## When auslaw-mcp returns a Cloudflare 403
 
-If any `mcp__auslaw-mcp__*` tool returns an error containing `"AUSTLII_COOKIE may have expired"` or `"AUSTLII_COOKIE is not set"`, **automatically refresh the cookie before doing anything else, then retry the failing tool call**. The user does not need to be prompted — this is a routine maintenance step that should be invisible to them.
+The server self-heals — you almost never need to do anything. On 401/403 from an AustLII endpoint, `auslaw-mcp` automatically:
 
-The refresh procedure (do all of this without asking):
+1. Runs `scripts/refresh-austlii-cookie.mjs` to decrypt the cookies Chrome currently holds for `.austlii.edu.au` and writes them to `.env`.
+2. Reloads `.env` into `process.env` so the new cookie takes effect immediately (no server restart needed).
+3. Retries the failing request once.
 
-1. Ensure **Claude in Chrome** is connected: call `mcp__Claude_in_Chrome__list_connected_browsers`. If empty, ask the user to open Chrome with the Claude extension signed in. Otherwise:
-2. Get an existing tab via `mcp__Claude_in_Chrome__tabs_context_mcp` (createIfEmpty: true), then navigate it to `https://www.austlii.edu.au/`. Read `document.title` — if it contains `"moment"` (Cloudflare's challenge page), wait 5 seconds and check again. Repeat up to ~3 times. Cloudflare almost always self-resolves silently for the user's normal Chrome.
-3. Once `document.title` is `"Australasian Legal Information Institute"` (or anything other than `"Just a moment..."`), Chrome has stored fresh `cf_clearance` and `__cf_bm` cookies in its DB. Run:
-   ```bash
-   node /Users/JaamaeHB/auslaw-mcp/scripts/refresh-austlii-cookie.mjs
+In the common case Chrome's cookie store is fresher than the server's `.env` — Chrome rotates Cloudflare cookies in the background as the user browses — so the retry succeeds and the model never sees the 403 at all.
+
+### When the model *does* see an error
+
+Two distinct messages, with different appropriate responses:
+
+**`"AustLII returned 403 ... auto-refresh from Chrome's cookie store didn't recover it ... open https://www.austlii.edu.au/ in Chrome"`** (the *afterRefresh* variant — refresh ran but Chrome's stored cookies are also stale). Do this:
+
+1. If `mcp__Claude_in_Chrome__*` tools are available in your session, navigate the user's Chrome to `https://www.austlii.edu.au/`:
    ```
-   This decrypts the cookies from Chrome's SQLite cookie store using the macOS Keychain key and writes `AUSTLII_COOKIE` to every `.env` in scope (main repo + any worktrees discovered via `git rev-parse --git-common-dir`). One-time keychain prompt the very first run; silent thereafter.
-4. Kill running auslaw-mcp processes so they respawn against the new env:
-   ```bash
-   ps -ef | grep -E 'node .*auslaw-mcp.*dist/index\.js|node dist/index\.js' | grep -v grep | awk '{print $2}' | xargs kill 2>/dev/null
+   mcp__Claude_in_Chrome__navigate(url="https://www.austlii.edu.au/", tabId=<any tab>)
    ```
-5. Retry the original failing tool call with the same arguments.
+   Then read `document.title`. If it contains `"moment"` (Cloudflare challenge page), wait 5 seconds and check again — Cloudflare normally self-resolves silently for the user's normal Chrome. Repeat up to ~3 times. Once the title is anything else (e.g. `"Australasian Legal Information Institute"`), Chrome's cookie store has fresh values.
+2. Retry the original tool call. The server will run its own refresh again on the next 403 and pick up Chrome's freshly-rotated cookies.
+3. If `Claude in Chrome` isn't connected (`mcp__Claude_in_Chrome__list_connected_browsers` returns `[]`), ask the user to open `https://www.austlii.edu.au/` in their Chrome and tell you when the page loads. Then retry.
 
-Edge cases and recovery:
+**`"AustLII returned 403 ... auto-refresh wasn't able to run (refresh script missing or Keychain access denied)"`** (the *firstTry* variant — the server's auto-refresh path failed before it could even try to recover). Do this:
 
-- **Cloudflare presents a visible challenge** (rare — only if the user's browser fingerprint is flagged): the title stays `"Just a moment..."` after a few polls. Tell the user to glance at the Chrome window and click anything Cloudflare asks for, then re-run from step 3.
-- **Keychain access denied** (script exits with code 2): tell the user that the macOS Keychain prompt was declined or didn't appear; suggest re-running the script and clicking "Always Allow" in the dialog.
-- **Cookies not in DB** (script exits with code 1): the user has never visited AustLII in this Chrome profile, or cookies were cleared. Navigate Chrome to AustLII first, then re-run.
-- **Decryption fails** (exit 3): Chrome upgraded its cookie format. The script handles `v10`/`v11` and the Chrome ≥130 SHA-256 integrity prefix; anything else is a Chrome version drift — flag to the user, don't keep retrying silently.
+- Check that `scripts/refresh-austlii-cookie.mjs` exists in the project root — if missing, the deploy is incomplete.
+- If present, the macOS Keychain prompt was likely denied. Tell the user to re-run `node scripts/refresh-austlii-cookie.mjs` manually from a terminal, click "Always Allow" on the Keychain dialog, then retry the tool call.
 
-Do **not** ask the user to manually paste cookies unless the automated refresh has failed for one of the reasons above — the whole point of this procedure is to remove the manual paste step.
+### Don't
+
+- Don't ask the user to manually paste cookies unless both of the above paths have failed. The whole point of this design is to eliminate the manual paste loop.
+- Don't try `chrome-devtools` MCP for cookie refresh — it spawns its own Chrome instance with a fresh fingerprint that Cloudflare flags as bot-y, and even manual challenge clicks tend to loop. Use `Claude in Chrome` (which goes through the user's normal browser) or fall back to asking the user.
+- Don't navigate the user's Chrome unless responding to the *afterRefresh* error. Routine queries don't need it.
 
 The `AUSTLII_USER_AGENT` in `.env` does **not** need refreshing on each cookie rotation as long as the user's Chrome version doesn't change. If Chrome auto-updates and refreshes start failing with cookie-bound errors despite a successful run, capture the new UA via `mcp__Claude_in_Chrome__javascript_tool` running `navigator.userAgent` and update `AUSTLII_USER_AGENT` in `.env` to match.
 
