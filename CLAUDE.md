@@ -20,40 +20,31 @@ npm run lint:fix       # Auto-fix lint issues
 
 ## When auslaw-mcp returns a Cloudflare 403
 
-The server self-heals — you almost never need to do anything. On 401/403 from an AustLII endpoint, `auslaw-mcp` automatically:
+The server self-heals in the common case. On 401/403 from an AustLII endpoint it runs `scripts/refresh-austlii-cookie.mjs`, which decrypts the cookies the user's Chrome currently holds for `.austlii.edu.au` (from Chrome's SQLite cookie store), writes them to `.env`, reloads `process.env`, and retries the failing request once. Whenever Chrome's stored cookies are fresher than the server's `.env`, the retry succeeds and the model never sees the 403.
 
-1. Runs `scripts/refresh-austlii-cookie.mjs` to decrypt the cookies Chrome currently holds for `.austlii.edu.au` and writes them to `.env`.
-2. Reloads `.env` into `process.env` so the new cookie takes effect immediately (no server restart needed).
-3. Retries the failing request once.
+The refresh is throttled to once per 30 seconds (per server process) and coalesces concurrent tool calls so they share one refresh attempt.
 
-In the common case Chrome's cookie store is fresher than the server's `.env` — Chrome rotates Cloudflare cookies in the background as the user browses — so the retry succeeds and the model never sees the 403 at all.
+### When the model sees an error
 
-### When the model *does* see an error
+The visible failure mode is the *afterRefresh* error:
 
-Two distinct messages, with different appropriate responses:
+> `"AustLII returned 403 ... even after the server refreshed cookies from Chrome's cookie store. To recover: open https://www.austlii.edu.au/ in Chrome, type any query into the search box, and submit it..."`
 
-**`"AustLII returned 403 ... auto-refresh from Chrome's cookie store didn't recover it ... open https://www.austlii.edu.au/ in Chrome"`** (the *afterRefresh* variant — refresh ran but Chrome's stored cookies are also stale). Do this:
+This means Chrome's stored cookies are also stale, OR Cloudflare has flagged the machine's IP and is rejecting cookies regardless of freshness. The error message tells the user exactly what to do: **open the AustLII homepage in Chrome and submit a real search through the form**. That action triggers Cloudflare to issue fresh cookies more reliably than any programmatic navigation. Once the user sees the search results, the model retries the original tool call and the server picks up the new cookies on the next request.
 
-1. If `mcp__Claude_in_Chrome__*` tools are available in your session, navigate the user's Chrome to `https://www.austlii.edu.au/`:
-   ```
-   mcp__Claude_in_Chrome__navigate(url="https://www.austlii.edu.au/", tabId=<any tab>)
-   ```
-   Then read `document.title`. If it contains `"moment"` (Cloudflare challenge page), wait 5 seconds and check again — Cloudflare normally self-resolves silently for the user's normal Chrome. Repeat up to ~3 times. Once the title is anything else (e.g. `"Australasian Legal Information Institute"`), Chrome's cookie store has fresh values.
-2. Retry the original tool call. The server will run its own refresh again on the next 403 and pick up Chrome's freshly-rotated cookies.
-3. If `Claude in Chrome` isn't connected (`mcp__Claude_in_Chrome__list_connected_browsers` returns `[]`), ask the user to open `https://www.austlii.edu.au/` in their Chrome and tell you when the page loads. Then retry.
+If `mcp__Claude_in_Chrome__*` is available you *can* offer to drive that navigation yourself, but be honest with the user about its limitations: form submission via JS may or may not trigger Cloudflare's full challenge cycle — the most reliable path is the user clicking through manually.
 
-**`"AustLII returned 403 ... auto-refresh wasn't able to run (refresh script missing or Keychain access denied)"`** (the *firstTry* variant — the server's auto-refresh path failed before it could even try to recover). Do this:
+### What we tried and abandoned
 
-- Check that `scripts/refresh-austlii-cookie.mjs` exists in the project root — if missing, the deploy is incomplete.
-- If present, the macOS Keychain prompt was likely denied. Tell the user to re-run `node scripts/refresh-austlii-cookie.mjs` manually from a terminal, click "Always Allow" on the Keychain dialog, then retry the tool call.
+We previously experimented with auto-nudging Chrome via `open -a "Google Chrome" <search-url>` to force a fresh Cloudflare challenge. It doesn't reliably work: Cloudflare scores Chrome's existing fingerprint highly enough to pass without issuing fresh cookies, AustLII's `/cgi-bin/sinosrch.cgi` returns 410 Gone for direct URL navigation (no Referer), and aggressive testing flags the machine's IP. A real form submission from the user's hand is the ground-truth working recovery.
 
 ### Don't
 
-- Don't ask the user to manually paste cookies unless both of the above paths have failed. The whole point of this design is to eliminate the manual paste loop.
-- Don't try `chrome-devtools` MCP for cookie refresh — it spawns its own Chrome instance with a fresh fingerprint that Cloudflare flags as bot-y, and even manual challenge clicks tend to loop. Use `Claude in Chrome` (which goes through the user's normal browser) or fall back to asking the user.
-- Don't navigate the user's Chrome unless responding to the *afterRefresh* error. Routine queries don't need it.
+- Don't paste cookies manually. The server's auto-refresh from Chrome's DB handles most cases.
+- Don't use `chrome-devtools` MCP — it spawns an isolated Chrome with no fingerprint, Cloudflare loops indefinitely.
+- Don't drive Chrome to a `/cgi-bin/sinosrch.cgi` URL via `open` or `mcp__Claude_in_Chrome__navigate` and assume cookies will refresh. They typically won't (returns 410 Gone, Cloudflare passes through). Have the user submit the form themselves.
 
-The `AUSTLII_USER_AGENT` in `.env` does **not** need refreshing on each cookie rotation as long as the user's Chrome version doesn't change. If Chrome auto-updates and refreshes start failing with cookie-bound errors despite a successful run, capture the new UA via `mcp__Claude_in_Chrome__javascript_tool` running `navigator.userAgent` and update `AUSTLII_USER_AGENT` in `.env` to match.
+The `AUSTLII_USER_AGENT` in `.env` does **not** need refreshing on each cookie rotation as long as the user's Chrome version doesn't change. If Chrome auto-updates and refreshes start failing despite Chrome having fresh cookies, capture the new UA via `mcp__Claude_in_Chrome__javascript_tool` running `navigator.userAgent` and update `AUSTLII_USER_AGENT` in `.env`.
 
 ## Key Architecture
 

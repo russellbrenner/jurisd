@@ -95,15 +95,19 @@ export function austliiCloudflareErrorMessage(
 ): string {
   const cookieState = process.env.AUSTLII_COOKIE ? "may have expired" : "is not set";
   if (variant === "afterRefresh") {
+    // The server's auto-refresh ran but the retried request still 401/403'd.
+    // This means Chrome's stored cookies are also stale, OR Cloudflare has
+    // flagged this machine's IP and is rejecting cookies regardless of
+    // freshness. Recovery is a small user action: run a real search in
+    // Chrome (the form submission triggers a fresh Cloudflare challenge
+    // more reliably than direct URL navigation).
     return (
-      `AustLII returned ${status} on ${context} and the auto-refresh from Chrome's ` +
-      `cookie store didn't recover it — Chrome's stored cookies are also stale. ` +
-      `To fix: open https://www.austlii.edu.au/ in Chrome (any tab; if Cloudflare ` +
-      `presents a "Just a moment..." page, wait a few seconds for it to clear ` +
-      `automatically). Then retry the original request — the server will pick up ` +
-      `Chrome's freshly-refreshed cookies on the next call. If you have the ` +
-      `Claude in Chrome MCP available in your session, you can do this navigation ` +
-      `via mcp__Claude_in_Chrome__navigate without leaving the conversation.`
+      `AustLII returned ${status} on ${context} even after the server refreshed ` +
+      `cookies from Chrome's cookie store. To recover: open ` +
+      `https://www.austlii.edu.au/ in Chrome, type any query into the search ` +
+      `box, and submit it. That triggers Cloudflare to issue fresh cookies. ` +
+      `Once you see the search results page, retry the original request — the ` +
+      `server will pick up the freshly-issued cookies on the next call.`
     );
   }
   return (
