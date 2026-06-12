@@ -19,12 +19,18 @@ podman build -t jurisd:latest .
 
 The build:
 
-1. **builder stage** runs `npm ci --omit=optional` then `npm run build` to emit
-   `dist/`. Optional native deps are skipped here because TypeScript does not
-   need them to compile.
-2. **runtime stage** installs production deps, then explicitly installs
-   `@duckdb/node-api` and `impit` (the two optionals the running server uses),
-   copies `dist/`, drops to a non-root user, and sets `JURISD_MODULES_DIR=/data/modules`.
+1. **builder stage** runs a full `npm ci` then `npm run build` to emit `dist/`.
+   The optionals are installed here on purpose: `tsc` compiles type-only
+   references such as `import("@duckdb/node-api").DuckDBInstance` (modules.ts,
+   oalc.ts) and `import("impit").Browser` (transport.ts), which resolve against
+   `node_modules` at compile time even though the runtime loads those modules via
+   dynamic `import()` and degrades when they are absent. Omitting optionals here
+   fails the build with `TS2307`. The builder stage is discarded — only `dist/`
+   is copied forward — so the heavier install does not affect the final image.
+2. **runtime stage** installs production deps with `--omit=optional`, then
+   explicitly adds back `@duckdb/node-api` and `impit` (the two optionals the
+   running server uses), copies `dist/`, drops to a non-root user, and sets
+   `JURISD_MODULES_DIR=/data/modules`.
 
 `@huggingface/transformers` (the local embedder behind `semantic_search_local`)
 is **not** bundled, to keep the image slim. That single tool degrades visibly
