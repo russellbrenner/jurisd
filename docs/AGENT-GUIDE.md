@@ -500,7 +500,7 @@
 
 | Variable            | Purpose                                       | Required                                    |
 | ------------------- | --------------------------------------------- | ------------------------------------------- |
-| JADE_SESSION_COOKIE | jade.io authenticated access                  | For premium content                         |
+| JADE_SESSION_COOKIE | jade.io authenticated access                  | For jade.io subscription content            |
 | ISAACUS_API_KEY     | BYOK key for the optional domain-adapter slot | For the optional domain-specialised adapter |
 | LITELLM_BASE_URL    | LiteLLM gateway                               | For generative fallback                     |
 

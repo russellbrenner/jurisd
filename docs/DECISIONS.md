@@ -11,7 +11,7 @@
 **Date:** 2026-03-01  
 **Status:** Accepted
 
-**Context:** Legal research requires comprehensive search coverage. AustLII provides free access; jade.io offers premium curated content.
+**Context:** Legal research requires comprehensive search coverage. AustLII is an open-access source; jade.io is a subscription source offering curated content and citator data.
 
 **Decision:** Query both AustLII and jade.io, merge results with deduplication by neutral citation.
 
