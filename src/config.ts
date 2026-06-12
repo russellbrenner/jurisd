@@ -1,5 +1,5 @@
 /**
- * Configuration module for AusLaw MCP
+ * Configuration module for jurisd
  * Loads configuration from environment variables with defaults
  */
 
@@ -130,7 +130,7 @@ export function loadConfig(): Config {
     },
     source: {
       baseUrl: process.env.SOURCE_BASE_URL || "https://removed.invalid",
-      userAgent: process.env.SOURCE_USER_AGENT || "auslaw-mcp/0.1.0 (legal research tool)",
+      userAgent: process.env.SOURCE_USER_AGENT || "jurisd/0.1.0 (legal research tool)",
       timeout: parseInt(process.env.SOURCE_TIMEOUT || "15000", 10),
       sessionCookie: process.env.SESSION_COOKIE || undefined,
     },
