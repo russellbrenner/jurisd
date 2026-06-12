@@ -33,7 +33,9 @@ MCP server for Australian/NZ legal research:
 ## Architecture Summary
 
 ```
-MCP Clients → jurisd → AustLII, jade.io, Isaacus (optional)
+MCP Clients → jurisd → live sources (AustLII, jade.io)
+                     → local data modules (offline, DuckDB/parquet)
+                     → optional domain-adapter slot (BYOK)
 ```
 
 **Key Features:**
