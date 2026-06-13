@@ -12,8 +12,9 @@
     "LICENSE"
   ],
   "scripts": {
-    "build": "tsc && node -e \"const fs=require('fs'),p=require('path');fs.mkdirSync('dist/data',{recursive:true});fs.copyFileSync('src/data/manifest.schema.json','dist/data/manifest.schema.json')\"",
+    "build": "tsc -p tsconfig.build.json && node -e \"const fs=require('fs'),p=require('path');fs.mkdirSync('dist/data',{recursive:true});fs.copyFileSync('src/data/manifest.schema.json','dist/data/manifest.schema.json')\"",
     "clean": "rm -rf dist",
+    "prepublishOnly": "npm run clean && npm run build",
     "dev": "tsx watch src/index.ts",
     "start": "node dist/index.js",
     "test": "vitest run",
