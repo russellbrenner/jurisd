@@ -1,7 +1,7 @@
 {
   "name": "jurisd",
   "version": "0.1.0",
-  "description": "Model Context Protocol server for Australian legislation and case law search with OCR fallbacks.",
+  "description": "Model Context Protocol (MCP) server for Australian legal research. Features local-first data modules, live AustLII/jade.io search, and AGLC4 citation mapping.",
   "main": "dist/index.js",
   "bin": {
     "jurisd": "dist/index.js"
