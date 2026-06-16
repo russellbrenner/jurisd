@@ -1,7 +1,7 @@
 # jurisd CLI/TUI legal reasoning workbench design
 
 Date: 2026-06-16
-Status: approved design, pending implementation plan
+Status: approved design, remediated after adversarial review, pending implementation plan
 Scope: jurisd CLI, TUI, MCP adapter foundations, command contracts, help, completions, security conventions, and north-star architecture for local corpora, vector recall, graph traversal, provider enrichment, and source-backed legal reasoning.
 
 ## 1. Product stance
@@ -25,6 +25,8 @@ Core invariant:
 > No source span, no trusted legal claim.
 
 Vector search is recall, not legal authority. Graph traversal is a map over stored relationships, not a proof of law. External enrichment is candidate generation unless accepted through deterministic gates or review.
+
+Offline operation is a first-class requirement for local corpora. Local search, source-span inspection, accepted graph traversal, provenance tracing, and review of already-imported material must work without network access. Provider-backed enrichment, external fetches, remote embeddings, and credentialed services are optional capabilities. When unavailable, commands return typed `capability_missing` or `provider_unavailable` results rather than silently degrading into weaker claims.
 
 ## 2. WorkingMem terminology alignment
 
@@ -98,24 +100,19 @@ MCP names remain stable `snake_case`. CLI names use task-oriented command words.
 
 ### 3.1 Command contract fields
 
-Every public command contract must declare:
+Every public command contract must declare required, defaulted, and adapter-conditional metadata.
+
+Required for every public command:
 
 - stable command id
-- aliases
 - synopsis
 - summary
-- description
 - arguments
 - flags
 - stdin mode
 - output modes
-- examples
 - exit codes
 - validation schema
-- completion provider metadata
-- MCP mapping, if exposed
-- TUI metadata, if exposed
-- docs anchor
 - stability level
 - side-effect class
 - dangerousness
@@ -125,7 +122,16 @@ Every public command contract must declare:
 - capability gates
 - result contract
 
-Missing required metadata fails tests.
+Adapter-conditional metadata is required only where the adapter is enabled:
+
+- aliases
+- completion provider metadata
+- MCP mapping, if exposed
+- TUI metadata, if exposed
+- docs anchor
+- examples
+
+Defaultable fields must still resolve to explicit values in the generated contract. Missing required metadata fails tests. Missing adapter-conditional metadata fails tests only when that adapter is enabled for the command.
 
 ### 3.2 Adapter eligibility metadata
 
@@ -161,6 +167,8 @@ MCP tools are limited to stable, frequent, externally useful query and review in
 Operator, install, update, fetch, destructive, filesystem-write, and network-write commands are CLI-only unless a later decision explicitly allows them under an authority contract.
 
 Existing MCP tool names and schemas must remain compatible unless explicitly documented as a breaking change. Current 15 MCP tools stay stable during the first CLI/TUI foundation PR.
+
+The compatibility set must be enumerated in a generated or committed MCP compatibility reference before implementation starts. The reference must list each existing tool name, schema version or schema hash, result contract, and compatibility test. The spec does not rely on memory of the current 15 tools.
 
 Safe future MCP workbench tools may include:
 
@@ -349,6 +357,30 @@ The agent may plan and run governed commands:
 
 The agent is not a separate backend. It operates through the command contract registry and authority-aware execution service.
 
+#### 6.1.1 Agent architecture boundary
+
+The agentic TUI is implemented as an orchestration layer over command contracts, not as an unrestricted tool runner.
+
+Minimum components:
+
+- `AgentPlanner`, converts user intent into a typed plan made only of known command ids and typed arguments.
+- `AgentContextAssembler`, selects source spans, prior command results, corpus scope, graph paths, and review state for planner context.
+- `AgentExecutor`, dispatches approved plan steps through the authority-aware execution service.
+- `AgentStateStore`, records plans, step state, interruptions, partial results, and resumability metadata.
+- `AgentProvider`, supplies model-backed or rule-backed planning. Provider output is untrusted until validated against the command contract registry.
+
+Agent plans are typed data, not prose. A plan step cannot execute unless its command id exists, its arguments validate, its adapter is permitted, and its side-effect class passes authority checks.
+
+The first foundation PR must not implement a full natural-language planner. It may include only the UI and contract seams needed for a later planner.
+
+#### 6.1.2 Agent failure and interruption rules
+
+If a plan step fails, the agent must classify the failure as validation error, no results, source unavailable, capability missing, auth failure, network failure, unsafe operation refused, or internal error.
+
+The agent may continue only where the plan declares the failed step as optional. Otherwise it must stop, show partial results, and ask for user direction.
+
+Interrupting a running plan cancels pending steps, requests cancellation of active steps where supported, preserves completed result blocks, and records an audit or transcript event.
+
 Read-only operations may run automatically within the active corpus scope:
 
 - local search
@@ -376,7 +408,11 @@ Agent plans must be visible. Running plans must be interruptible. Every agent ac
 
 ### 6.2 TUI terminal behaviour
 
-Default TUI preserves native terminal scrollback. It does not use alternate screen by default. Completed output is stable, selectable, and copy-friendly.
+The TUI has two display modes.
+
+Default inline mode preserves native terminal scrollback. Completed output is stable, selectable, and copy-friendly.
+
+Future full-workbench mode may use alternate screen for multi-pane interaction, provided it can export or print a stable transcript of completed commands and reasoning traces. The first TUI foundation must not assume that all interfaces require alternate screen.
 
 The TUI must honour:
 
@@ -443,6 +479,53 @@ A source span connects:
 
 Every legal assertion is either traceable to source spans or explicitly marked as proposed, unresolved, inferred, degraded, or rejected.
 
+#### 7.1.1 Minimum SourceSpan schema
+
+A `SourceSpan` is immutable and belongs to one document version.
+
+Minimum fields:
+
+```ts
+type SourceSpan = {
+  span_id: string;
+  corpus_id: string;
+  source_document_id: string;
+  document_version_id: string;
+  source_blob_id?: string;
+  span_type:
+    | "document"
+    | "page"
+    | "paragraph"
+    | "heading"
+    | "provision"
+    | "schedule"
+    | "clause"
+    | "citation"
+    | "pinpoint"
+    | "selection"
+    | "generated_reference";
+  locator_type: "char_range" | "page" | "paragraph" | "provision" | "xpath" | "external";
+  locator_value: string;
+  char_start?: number;
+  char_end?: number;
+  page_start?: number;
+  page_end?: number;
+  parent_span_id?: string;
+  content_hash?: string;
+  created_at: string;
+  supersedes_span_id?: string;
+};
+```
+
+Rules:
+
+- spans may overlap
+- nested spans use `parent_span_id`
+- document changes create a new `document_version_id` and new spans
+- old spans are preserved and may be marked superseded through review or provenance metadata
+- cross-document relationships are graph edges or relationship claims, not single spans
+- inferred relationship claims may reference multiple source spans and must be marked `inferred`, `proposed`, or `needs_review` unless accepted by deterministic gates or review
+
 ### 7.2 Canonical local data model
 
 Minimum north-star concepts:
@@ -478,7 +561,7 @@ The first CLI/TUI foundation PR does not need to implement this model. It must a
 Preferred local direction, subject to spikes:
 
 - DuckDB as local analytical substrate where stable and packageable
-- DuckPGQ as preferred local graph-query candidate, subject to maturity and packaging verification
+- DuckDB plus a verified graph-query extension or graph-over-table approach as a primary spike candidate, subject to maturity, packaging, TypeScript integration, persistence, offline extension loading, and licence verification
 - SQLite adjacency tables as safe fallback baseline
 - sqlite-vec, DuckDB vector extension, or local pgvector profile for vector recall, selected by verification
 
@@ -516,8 +599,9 @@ Required operations:
 
 Potential backends:
 
-- DuckDB plus DuckPGQ
-- LadybugDB
+- DuckDB plus a verified graph-query extension or graph-over-table approach
+- Kuzu, only if maintenance status and packaging are acceptable
+- LadybugDB, only after project identity and maturity are verified
 - SQLite adjacency tables
 - PostgreSQL adjacency tables
 - FalkorDB
@@ -526,7 +610,26 @@ Potential backends:
 - RDF/SPARQL backend
 - production custom backend
 
-DuckDB plus DuckPGQ is the leading local graph-query candidate because it aligns with embedded analytics, Parquet data modules, graph-over-table querying, and export workflows. LadybugDB is a candidate embedded property-graph backend and likely Kuzu successor, subject to verification. Graphiti is a candidate temporal graph-memory provider, not the architecture.
+DuckDB plus a verified graph-query extension or graph-over-table approach is a primary spike candidate because it may align with embedded analytics, Parquet data modules, graph-over-table querying, and export workflows. It is not selected until packaging, TypeScript integration, persistence, offline extension loading, and licence are verified.
+
+Kuzu, SQLite adjacency tables, PostgreSQL adjacency tables, FalkorDB, RDF/SPARQL backends, and other embedded or service-backed graph systems remain candidates behind `GraphProvider`.
+
+LadybugDB must not be treated as a candidate until its project identity, repository, licence, maintenance status, persistence model, and TypeScript integration are verified.
+
+Graphiti is a candidate temporal graph-memory backend behind `GraphProvider`, not the architecture and not a substitute for the CorpusStore.
+
+GraphProvider backend selection criteria must include:
+
+- source-span preservation
+- review-state filtering
+- closed-world scope filtering
+- temporal filtering, where claimed
+- efficient predicate pushdown for corpus, matter, compartment, review state, edge type, and time slice
+- local/offline operation, where required
+- TypeScript integration
+- packaging and installation complexity
+- persistence and backup model
+- licence and project maturity
 
 ### 7.5 Graph query language
 
@@ -549,13 +652,13 @@ jurisd graph subgraph <node>
 jurisd graph as-of <date>
 ```
 
-Native expert mode:
+Native expert mode is backend-dependent:
 
 ```text
-jurisd graph query --language pgq '...'
-jurisd graph query --language cypher '...'
-jurisd graph query --language sparql '...'
+jurisd graph query --language <backend-supported-language> '...'
 ```
+
+Examples may include `pgq`, `cypher`, or `sparql` only when the configured backend supports that language. Native query support is not a promise that all graph backends or all languages are available.
 
 Native query remains policy-wrapped. It must not bypass corpus scope, review-state policy, closed-world mode, time slicing, source-span requirements, or audit controls.
 
@@ -808,6 +911,38 @@ MVP may begin with:
 - superseded
 - unresolved
 
+### 11.1 MVP review state transitions
+
+MVP valid transitions:
+
+| From       | To         | Notes                                                               |
+| ---------- | ---------- | ------------------------------------------------------------------- |
+| proposed   | accepted   | reviewer accepts the claim or relationship for current corpus scope |
+| proposed   | rejected   | reviewer rejects the claim or relationship                          |
+| proposed   | disputed   | reviewer records conflict or unresolved disagreement                |
+| proposed   | unresolved | reviewer cannot resolve with current sources                        |
+| accepted   | disputed   | later evidence or reviewer challenge                                |
+| accepted   | superseded | newer source, correction, or replacement                            |
+| rejected   | disputed   | reviewer challenge or new evidence                                  |
+| rejected   | superseded | replaced by corrected extraction or relationship                    |
+| disputed   | accepted   | dispute resolved in favour                                          |
+| disputed   | rejected   | dispute resolved against                                            |
+| disputed   | unresolved | insufficient source material                                        |
+| unresolved | proposed   | new extraction, source, or provider result reopens item             |
+| unresolved | rejected   | enough evidence to reject                                           |
+| superseded | proposed   | only by creating a new review item or corrected successor           |
+
+Every transition records:
+
+- review item id
+- from state
+- to state
+- actor or system actor
+- reason, where supplied
+- timestamp
+- source spans or result ids considered
+- audit or provenance event id
+
 Confidence/corroboration terms:
 
 - confidence_label
@@ -886,6 +1021,8 @@ JADE session cookies, Isaacus keys, provider keys, and graph backend credentials
 
 Evidence Packs are externally verifiable export bundles with proof material. Ordinary CLI/TUI/MCP responses are typed result blocks with provenance metadata, not Evidence Packs.
 
+Every command returns typed result blocks unless it explicitly invokes export behaviour. Evidence Packs are created only by explicit export commands, for example `jurisd export evidence-pack`, or by a clearly named future flag. Ordinary search, graph, review, and MCP responses are not Evidence Packs.
+
 An Evidence Pack contains:
 
 - source spans
@@ -897,6 +1034,21 @@ An Evidence Pack contains:
 - provider and model versions
 - degradation notes
 - command and audit events
+
+The expected Evidence Pack shape is a directory or zip bundle containing at minimum:
+
+```text
+manifest.json
+sources/
+spans/
+graph/
+review/
+provenance/
+audit/
+README.md
+```
+
+`manifest.json` records bundle schema version, source hashes, included commands, provider versions, degradation notes, and verification metadata. Full schema is deferred to the Evidence Pack stage.
 
 An Evidence Pack proves what the system used, which sources were present, which policy and review state existed, and how an output was produced. It does not prove that a legal conclusion is correct.
 
@@ -968,80 +1120,108 @@ Generated sections must have deterministic ordering and visible generated notice
 - changelog fragment rules
 - PR checklist
 
-## 16. First PR scope
+## 16. Foundation PR staging
 
-The first PR ships foundations only.
+The foundation work is split into reviewable PRs. Each PR must be independently mergeable and must not claim to ship later-stage corpus, graph, vector, provider, or agentic capabilities.
+
+### 16.1 Foundation PR 1: command contracts, CLI skeleton, and MCP compatibility
 
 Deliver:
 
-1. Repo conventions: `AGENTS.md`, strengthened `CONTRIBUTING.md`, rules for command contracts, generated docs, tests, security, and anti-slop examples.
-2. Command contract architecture: command contract registry with authority metadata, adapter metadata, side-effect classification, capability gates, result contract hooks, registry coverage tests.
-3. MCP compatibility preservation: existing 15 MCP tools remain stable, MCP names stay `snake_case`, no operator/admin commands exposed over MCP by default, compatibility tests prove behaviour is not broken.
-4. CLI foundation: grouped command UX, compatibility aliases for existing flat commands, per-command help, global help topics, stable exit codes, stdout/stderr rules, `--json`, `--plain`, `--no-color`, `--debug`, actionable errors.
-5. Shell completions: bash, zsh, fish, and PowerShell if practical, generated from metadata with shell-safe escaping tests.
-6. TUI foundation: `jurisd tui`, command palette, transcript/composer layout, slash commands, minimal natural-language planning boundary, and future pane placeholders.
-7. Docs: authored CLI guide, authored TUI guide, generated command reference, completion install docs, security and authority docs, architecture/north-star section.
-8. Security review artefact: committed checklist/report covering terminal injection, no-shell invariant, completion injection, credential redaction, MCP exposure, and authority boundaries.
+1. Repo conventions: `AGENTS.md`, strengthened `CONTRIBUTING.md`, generated-file rules, required tests, security constraints, docs rules, review standards, anti-slop rules, and how to add a command once.
+2. Command contract architecture: command contract registry with authority metadata, adapter metadata, side-effect classification, capability gates, result contract hooks, and registry coverage tests.
+3. MCP compatibility preservation: existing MCP tools remain stable, MCP names stay `snake_case`, no operator/admin commands exposed over MCP by default, and compatibility tests prove behaviour is not broken.
+4. CLI foundation: grouped command UX skeleton, compatibility aliases for existing flat commands, per-command help shape, global help topics, stable exit codes, stdout/stderr rules, `--json`, `--plain`, `--no-color`, `--debug`, and actionable error shape.
+5. Docs skeleton: authored CLI guide outline, generated command reference pipeline, and security/authority documentation outline.
+6. Security checklist: committed checklist covering terminal injection, no-shell invariant, credential redaction, MCP exposure, and authority boundaries.
 
-Explicitly do not build in the first PR:
+Explicitly do not build in PR 1:
 
 - full CorpusStore
-- DuckDB/DuckPGQ integration
-- LadybugDB integration
-- Graphiti integration
-- vector indexing
 - source import pipeline
+- vector indexing
+- graph backend integration
+- shell completion generation beyond command metadata seams
+- full TUI
+- natural-language planner
 - Evidence Pack export
 - Isaacus provider integration
-- full agentic planner
-- graph visualisation
-- review queue persistence
 
-The first PR must make room for those features without pretending to ship them.
+### 16.2 Foundation PR 2: completions, generated docs, and security hardening
 
-## 17. Staging after the first PR
+Deliver:
+
+1. bash, zsh, fish completions, and PowerShell if practical, generated from metadata
+2. shell-safe escaping tests
+3. generated command reference
+4. completion install docs
+5. stale generated-doc and completion checks
+6. expanded security review artefact
+
+### 16.3 Foundation PR 3: TUI scaffold
+
+Deliver:
+
+1. `jurisd tui` entry point
+2. selected terminal framework
+3. command palette over command contracts
+4. transcript/composer layout
+5. slash-command dispatch to governed command contracts
+6. future pane placeholders
+7. no full natural-language planner
+
+### 16.4 Later PR: agentic TUI
+
+The agentic TUI planner is implemented only after the planner architecture, command constraints, context assembly, failure handling, provider boundaries, and audit model are designed and tested.
+
+## 17. Staging after foundation PRs
 
 Recommended stages:
 
 1. Source custody and CorpusStore.
 2. Parser/source spans and document-interior extraction.
 3. Lexical and semantic recall.
-4. GraphProvider with DuckDB/DuckPGQ or adjacency backend spike.
+4. GraphProvider with DuckDB-backed graph-over-table or adjacency backend spike.
 5. Review workflow.
-6. Agentic TUI workbench.
-7. Evidence Pack export.
-8. MCP workbench tools.
-9. Isaacus and self-hosted provider adapters.
-10. Advanced graph and vector backends.
+6. TUI scaffold and command-palette workbench.
+7. Agentic TUI planner and governed research workflows.
+8. Evidence Pack export.
+9. MCP workbench tools.
+10. Isaacus and self-hosted provider adapters.
+11. Advanced graph and vector backends.
 
-## 18. Acceptance criteria for the first PR
+## 18. Acceptance criteria for Foundation PR 1
 
-The first PR is acceptable only if:
+Foundation PR 1 is acceptable only if:
 
-- command metadata is not duplicated by hand across MCP, CLI, TUI, docs, and completions
+- command metadata is not duplicated by hand across MCP, CLI, docs, and future adapter seams
 - adding a command without required metadata fails tests
 - existing MCP tool names and schemas remain compatible
-- CLI help is useful, not schema-dump prose
+- the current MCP compatibility set is enumerated in a committed or generated reference
+- CLI help shape is useful, not schema-dump prose
 - CLI errors are actionable
 - stdout/stderr behaviour is documented and tested
-- completions are deterministic and shell-safe
-- TUI starts and exposes command palette/help
 - docs explain the north-star architecture without claiming v1 has all of it
-- security review is committed
+- security checklist is committed
 - full test, lint, and build pass
 
 ## 19. Open verification items
 
 Before implementation of later graph/vector/provider stages, verify with current external research:
 
-- DuckDB + DuckPGQ packaging, TypeScript integration, maturity, persistence, and offline extension story
-- LadybugDB packaging, licence, persistence, TypeScript integration, and project maturity
+- DuckDB graph-query options, including whether DuckPGQ or any similarly named project is a DuckDB extension, PostgreSQL extension, standalone project, or unsuitable; verify packaging, TypeScript integration, maturity, persistence, offline extension loading, and licence
+- Kuzu, SQLite adjacency tables, PostgreSQL adjacency tables, FalkorDB, RDF/SPARQL backends, and any proposed LadybugDB candidate; verify project identity, licence, persistence, TypeScript integration, local/offline operation, and project maturity
 - Graphiti backend support, temporal semantics, provenance model, licensing, and operational maturity
 - sqlite-vec, DuckDB vector extensions, pgvector, pgvectorscale, VectorChord, LanceDB, Qdrant, and Weaviate trade-offs
 - Isaacus/Kanon Embedder, Reranker, Enricher, ILDGS, Blackstone Graph schema, access, licence, and Australian coverage
 - Docling, OCR, paragraph-preserving legal parsers, LegalDocML/Akoma Ntoso, and citation resolvers
 - terminal framework suitability for the TUI workbench model
 - MCP patterns for scoped, provenance-bearing, capability-aware tools
+- SourceSpan schema against nested provisions, overlapping spans, paragraph and page locators, scanned PDFs, external citations, and inferred multi-source relationships
+- review state machine with legal research workflows and correction/dispute paths
+- PDF parsing and OCR pipelines against representative Australian legal PDFs, including degraded fallback for unparseable documents
+- terminal framework suitability before TUI scaffold implementation, including inline mode, alternate-screen mode, keyboard navigation, accessibility, and transcript export
+- agent planner architecture, including model/provider boundary, command registry constraints, context assembly, failure handling, interruption, cost controls, and auditability
 
 ## 20. Design decisions summary
 
@@ -1055,7 +1235,7 @@ Before implementation of later graph/vector/provider stages, verify with current
 - graph reads are closed-world by default.
 - LegalDomainProvider and GraphProvider are separate.
 - Isaacus alignment is strategic but provider-pluggable.
-- DuckDB + DuckPGQ is the leading local graph-query candidate, subject to verification.
-- Graphiti and FalkorDB remain provider candidates, not architecture.
+- DuckDB-backed graph-over-table or graph-extension approaches are primary spike candidates, subject to verification.
+- Graphiti, FalkorDB, Kuzu, RDF/SPARQL backends, and other graph systems remain backend candidates behind `GraphProvider`, not the architecture itself.
 - agentic TUI is command-governed and authority-aware.
 - Evidence Packs prove process and sources, not legal correctness.
