@@ -2,14 +2,19 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 
 import path from "node:path";
-import { formatFetchResponse, formatSearchResults } from "./utils/formatter.js";
+import {
+  formatFetchResponse,
+  formatSearchResults,
+  type SearchSourceStatuses,
+  type SearchWarning,
+} from "./utils/formatter.js";
 import { fetchDocumentText } from "./services/fetcher.js";
 import { searchAustLii, type SearchResult } from "./services/austlii.js";
 import { mergeCaseSearchResults } from "./services/search-merge.js";
 import {
   resolveArticle,
   buildCitationLookupUrl,
-  searchUpstream,
+  searchUpstreamWithStatus,
   searchCitingCases,
 } from "./services/source.js";
 import {
@@ -45,6 +50,7 @@ import {
 } from "./services/modules.js";
 import { getActiveAdapter } from "./services/capabilities.js";
 import { config } from "./config.js";
+import { CloudflareBlockedError } from "./errors.js";
 
 const formatEnum = z.enum(["json", "text", "markdown", "html"]).default("json");
 const jurisdictionEnum = z.enum([
@@ -97,6 +103,16 @@ function citedBySourceKey(parentCiteKey: string, neutralCitation: string): strin
   return `${parentCiteKey}_citing_${slug}`;
 }
 
+function austliiSearchWarning(error: unknown): SearchWarning | undefined {
+  if (!(error instanceof CloudflareBlockedError)) return undefined;
+  return {
+    code: "austlii_cloudflare_blocked",
+    source: "austlii",
+    message:
+      "AustLII search is blocked by a Cloudflare challenge. Direct document fetch still works when you already have a URL.",
+  };
+}
+
 /**
  * Build a fresh McpServer with all tools registered.
  *
@@ -139,15 +155,24 @@ export function createMcpServer(): McpServer {
     async (rawInput) => {
       const { query, jurisdiction, limit, format, sortBy, method, offset } =
         searchLegislationParser.parse(rawInput);
-      const results = await searchAustLii(query, {
-        type: "legislation",
-        jurisdiction,
-        limit,
-        sortBy,
-        method,
-        offset,
-      });
-      return formatSearchResults(results, format ?? "json");
+      try {
+        const results = await searchAustLii(query, {
+          type: "legislation",
+          jurisdiction,
+          limit,
+          sortBy,
+          method,
+          offset,
+        });
+        return formatSearchResults(results, format ?? "json");
+      } catch (error) {
+        const warning = austliiSearchWarning(error);
+        if (!warning) throw error;
+        return formatSearchResults([], format ?? "json", {
+          warnings: [warning],
+          sources: { austlii: "blocked" },
+        });
+      }
     },
   );
 
@@ -175,15 +200,39 @@ export function createMcpServer(): McpServer {
       const { query, jurisdiction, limit, format, sortBy, method, offset } =
         searchCasesParser.parse(rawInput);
 
-      // Run AustLII and removed.invalid searches in parallel
-      const [austliiResults, upstreamResults] = await Promise.all([
+      const warnings: SearchWarning[] = [];
+      const sources: SearchSourceStatuses = {};
+
+      // Run AustLII and removed.invalid searches independently so a blocked AustLII
+      // search cannot discard useful removed.invalid case results.
+      const [austliiOutcome, sourceOutcome] = await Promise.allSettled([
         searchAustLii(query, { type: "case", jurisdiction, limit, sortBy, method, offset }),
-        searchUpstream(query, { type: "case", jurisdiction, limit }),
+        searchUpstreamWithStatus(query, { type: "case", jurisdiction, limit }),
       ]);
 
-      const merged = mergeCaseSearchResults(austliiResults, upstreamResults, limit);
+      let austliiResults: SearchResult[] = [];
+      if (austliiOutcome.status === "fulfilled") {
+        austliiResults = austliiOutcome.value;
+        sources.austlii = "ok";
+      } else {
+        const warning = austliiSearchWarning(austliiOutcome.reason);
+        if (!warning) throw austliiOutcome.reason;
+        warnings.push(warning);
+        sources.austlii = "blocked";
+      }
 
-      return formatSearchResults(merged, format ?? "json");
+      if (sourceOutcome.status === "rejected") throw sourceOutcome.reason;
+
+      const upstreamResults = sourceOutcome.value.results;
+      sources.source = sourceOutcome.value.status;
+      const merged = mergeCaseSearchResults(austliiResults, upstreamResults, limit);
+      const includeSourceStatus = warnings.length > 0 || sources.source === "failed";
+
+      return formatSearchResults(
+        merged,
+        format ?? "json",
+        includeSourceStatus ? { warnings, sources } : undefined,
+      );
     },
   );
 

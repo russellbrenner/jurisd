@@ -110,6 +110,12 @@ and AGLC4 prompts once the `jurisd` MCP server is registered.
 | `search_legislation`  | Search AU/NZ legislation with the same method/jurisdiction/sort controls.                                                     |
 | `fetch_document_text` | Fetch full text from an AustLII or removed.invalid URL (HTML, PDF, removed.invalid via RPC).                                              |
 
+AustLII search may be blocked by Cloudflare even when direct document fetch
+still works. In that case `search_cases` returns any removed.invalid results it can
+find plus a warning, `sources`, and `degraded: true`. `search_legislation`
+returns an empty degraded result with the same machine-readable status instead
+of failing the tool call.
+
 ### Citation + bibliography (AGLC4)
 
 | Tool                  | What it does                                                                                                         |
