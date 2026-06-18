@@ -3,50 +3,26 @@ import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
 
+import { getCommandContractByCliName } from "../../commands/contracts.js";
+import { contractToToolCommand } from "../../commands/legacy-cli.js";
 import { runCli, mapArgvToToolInput } from "../../cli.js";
 import { setModulesRootForTest } from "../../services/modules.js";
 
 /**
  * The argv -> tool-input mapping is exercised here independently of any live
- * loopback so the coercion rules can be asserted offline. The mapping shapes
- * below mirror the registry entries in cli.ts; they are intentionally inlined
- * so the test pins the contract a caller relies on.
+ * loopback so the coercion rules can be asserted offline.
  */
-const searchCasesCmd = {
-  tool: "search_cases",
-  positional: ["query"],
-  numeric: ["limit", "offset"],
-  boolean: [],
-  array: [],
+const requiredToolCommand = (cliName: string) => {
+  const contract = getCommandContractByCliName(cliName);
+  if (!contract) throw new Error(`Missing command contract for ${cliName}`);
+  return contractToToolCommand(contract);
 };
-const resolveCitationCmd = {
-  tool: "resolve_citation",
-  positional: ["citation"],
-  numeric: [],
-  boolean: [],
-  array: [],
-};
-const findCitingCmd = {
-  tool: "find_citing",
-  positional: ["target"],
-  numeric: ["limit"],
-  boolean: [],
-  array: ["kinds"],
-};
-const listDataModulesCmd = {
-  tool: "list_data_modules",
-  positional: [],
-  numeric: [],
-  boolean: ["refresh", "includeInvalid"],
-  array: [],
-};
-const semanticCmd = {
-  tool: "semantic_search_local",
-  positional: ["query"],
-  numeric: ["k"],
-  boolean: [],
-  array: [],
-};
+
+const searchCasesCmd = requiredToolCommand("search-cases");
+const resolveCitationCmd = requiredToolCommand("resolve-citation");
+const findCitingCmd = requiredToolCommand("find-citing");
+const listDataModulesCmd = requiredToolCommand("list-data-modules");
+const semanticCmd = requiredToolCommand("semantic-search-local");
 
 describe("mapArgvToToolInput", () => {
   it("assigns a positional to the first schema field", () => {
@@ -125,6 +101,13 @@ describe("runCli routing", () => {
   it("returns false when the first arg is a flag", async () => {
     expect(await runCli(["--http"])).toBe(false);
   });
+
+  it("resolves existing flat CLI tool commands from command contracts", () => {
+    expect(getCommandContractByCliName("search-cases")?.adapters.mcp.toolName).toBe("search_cases");
+    expect(getCommandContractByCliName("get-provision")?.adapters.mcp.toolName).toBe(
+      "get_provision",
+    );
+  });
 });
 
 describe("runCli tool loopback (offline tools)", () => {
@@ -132,17 +115,21 @@ describe("runCli tool loopback (offline tools)", () => {
   let stdout: ReturnType<typeof vi.spyOn>;
   let stderr: ReturnType<typeof vi.spyOn>;
   let written: string;
+  let errors: string[];
 
   beforeEach(() => {
     process.exitCode = 0;
     scratch = fs.mkdtempSync(path.join(os.tmpdir(), "jurisd-cli-"));
     setModulesRootForTest(scratch, true);
     written = "";
+    errors = [];
     stdout = vi.spyOn(process.stdout, "write").mockImplementation((chunk: unknown) => {
       written += String(chunk);
       return true;
     });
-    stderr = vi.spyOn(console, "error").mockImplementation(() => {});
+    stderr = vi.spyOn(console, "error").mockImplementation((...chunks: unknown[]) => {
+      errors.push(chunks.map(String).join(" "));
+    });
   });
 
   afterEach(() => {
@@ -187,6 +174,32 @@ describe("runCli tool loopback (offline tools)", () => {
     expect(written.length).toBeGreaterThan(0);
     const parsed = JSON.parse(written) as Record<string, unknown>;
     expect(parsed).toBeTypeOf("object");
+  });
+
+  it("prints shell completion scripts to stdout with exit 0", async () => {
+    const handled = await runCli(["completion", "zsh"]);
+    expect(handled).toBe(true);
+    expect(process.exitCode).toBe(0);
+    expect(written).toContain("#compdef jurisd");
+    expect(written).toContain("search-cases");
+  });
+
+  it("rejects unsupported completion shells with a usage error", async () => {
+    const handled = await runCli(["completion", "powershell"]);
+    expect(handled).toBe(true);
+    expect(process.exitCode).toBe(2);
+    expect(written).toBe("");
+    expect(errors.join("\n")).toContain("unsupported completion shell");
+  });
+
+  it("does not echo unsupported completion shell input to diagnostics", async () => {
+    const handled = await runCli(["completion", "\u001b]0;title\u0007powershell"]);
+    expect(handled).toBe(true);
+    expect(process.exitCode).toBe(2);
+    const diagnostic = errors.join("\n");
+    expect(diagnostic).toContain("unsupported completion shell");
+    expect(diagnostic).not.toContain("title");
+    expect(diagnostic).not.toContain("powershell");
   });
 
   it("sets exitCode 2 when a required positional is missing", async () => {
