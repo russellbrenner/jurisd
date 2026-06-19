@@ -18,7 +18,7 @@ describe("searchJade", () => {
     "returns results for 'native title' when session cookie is configured",
     async () => {
       if (!process.env.JADE_SESSION_COOKIE) {
-        console.warn("JADE_SESSION_COOKIE not set — skipping live jade search smoke test");
+        console.warn("JADE_SESSION_COOKIE not set - skipping live jade search smoke test");
         return;
       }
       const results = await searchJade("native title", { type: "case", limit: 3 });
