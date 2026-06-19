@@ -298,7 +298,7 @@ export async function searchAustLii(
     });
 
     const html = response.body.toString("utf-8");
-    if (isCloudflareChallenge(response.status, html)) {
+    if (isCloudflareChallenge(response.status, html, response.headers)) {
       throw new CloudflareBlockedError(searchUrl.toString(), false);
     }
 

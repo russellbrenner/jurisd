@@ -293,7 +293,7 @@ async function fetchAustliiDocument(url: string): Promise<FetchResponse> {
   const r = await fetcher.get(target, { headers, timeoutMs: config.austlii.timeout });
 
   const bodyText = r.body.toString("utf-8");
-  if (isCloudflareChallenge(r.status, bodyText)) {
+  if (isCloudflareChallenge(r.status, bodyText, r.headers)) {
     if (config.oalc.enabled) {
       const cite = austliiUrlToNeutralCitation(url);
       if (cite) {

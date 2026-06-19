@@ -43,6 +43,15 @@ function assertNoUnsafeImpitRedirect(initialUrl: string, finalUrl: string | unde
   assertFetchableUrl(finalUrl);
 }
 
+/**
+ * impit 0.14.1's native binding rejects object-form headers at runtime
+ * ("napi value is not an array"); it accepts [key, value][] tuples instead.
+ * Convert here so callers can keep passing a plain Record.
+ */
+function toImpitHeaders(headers: Record<string, string> | undefined): [string, string][] {
+  return Object.entries(headers ?? {});
+}
+
 export interface TransportResponse {
   body: string;
   status: number;
@@ -97,9 +106,8 @@ async function fetchWithImpit(url: string, options: TransportOptions): Promise<T
   const client = new mod.Impit({ browser, maxRedirects: MAX_REDIRECTS });
 
   const method = (options.method ?? "GET").toUpperCase() as import("impit").HttpMethod;
-  const headers = options.headers ?? {};
 
-  const response = await client.fetch(url, { method, headers });
+  const response = await client.fetch(url, { method, headers: toImpitHeaders(options.headers) });
   assertNoUnsafeImpitRedirect(url, response.url);
 
   const body = await response.text();
@@ -223,7 +231,7 @@ class ImpitFetcher implements HttpFetcher {
     const client = new mod.Impit({ browser, maxRedirects: MAX_REDIRECTS });
     const response = await client.fetch(url, {
       method: "GET",
-      headers: opts.headers,
+      headers: toImpitHeaders(opts.headers),
     });
     // impit follows redirects internally; reject before consuming the body if
     // the chain bounced cross-host to a disallowed address (SSRF hardening).

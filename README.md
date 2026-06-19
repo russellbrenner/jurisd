@@ -98,6 +98,22 @@ and AGLC4 prompts once the `jurisd` MCP server is registered.
 | `search_legislation`  | Search AU/NZ legislation with the same method/jurisdiction/sort controls.                                                     |
 | `fetch_document_text` | Fetch full text from an AustLII or jade.io URL (HTML, PDF, jade.io via GWT-RPC).                                              |
 
+> **AustLII sits behind Cloudflare.** AustLII now serves a JavaScript
+> managed-challenge that automated clients — including TLS-impersonating ones —
+> cannot clear, so `search_cases` / `search_legislation` cannot query AustLII
+> directly. Configure a **fallback source**; results are still AustLII primary
+> sources (`austlii.edu.au` URLs) recovered through another channel.
+>
+> | Fallback   | Env var               | Cost              | You gain                                                                                        | You lose                                                                 |
+> | ---------- | --------------------- | ----------------- | ----------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------ |
+> | **Exa**    | `EXA_API_KEY`         | Paid (free tier)  | Neural search returns the canonical AustLII case/legislation URL (usually rank #1), even for obscure cases. | Discovery only (URL + citation); full text is fetched separately.        |
+> | **jade.io**| `JADE_SESSION_COOKIE` | Free (account)    | Full-text search **and** document retrieval via jade.io, plus the citator.                      | Needs a jade.io account; the session cookie expires and must be re-extracted. |
+> | **both**   | both of the above     | —                 | Best coverage — jade runs first (free), Exa fills the gaps it misses.                            | —                                                                        |
+> | **none**   | —                     | —                 | —                                                                                               | Search returns an actionable error naming the env vars; document fetch still falls back to the local OALC corpus when available. |
+>
+> Resolution order: free providers (jade live + AustLII, in case Cloudflare ever
+> relaxes) → Exa → typed error. The document source remains AustLII throughout.
+
 ### Citation + bibliography (AGLC4)
 
 | Tool                  | What it does                                                                                                         |

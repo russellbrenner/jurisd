@@ -47,12 +47,12 @@ export class CloudflareBlockedError extends AustLiiError {
       ? ", and the document was not in the Open Australian Legal Corpus fallback"
       : "";
     return (
-      `AustLII blocked automated access to ${resourceUrl} behind a Cloudflare challenge. ` +
-      `The TLS-impersonating fetch did not clear it${fallbackClause}. ` +
-      "Options: (1) set AUSTLII_CF_CLEARANCE from a browser session; " +
-      "(2) open the URL in a browser; " +
-      "(3) for covered jurisdictions, retrieve from the primary register " +
-      "(hcourt.gov.au / fedcourt.gov.au / legislation.gov.au / caselaw.nsw.gov.au)."
+      `AustLII is behind a Cloudflare challenge and cannot be accessed directly ` +
+      `(${resourceUrl})${fallbackClause}. Direct AustLII search and fetch are ` +
+      "unavailable without a configured fallback source. Configure ONE of: " +
+      "EXA_API_KEY (Exa neural search — returns canonical austlii.edu.au URLs), or " +
+      "JADE_SESSION_COOKIE (jade.io full text). " +
+      "Advanced: AUSTLII_CF_CLEARANCE from a solved browser session."
     );
   }
 }
