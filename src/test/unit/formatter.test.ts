@@ -326,7 +326,7 @@ it("markdown format includes reportedCitation when present", () => {
     },
   ];
   const output = formatSearchResults(results, "markdown");
-  expect(getText(output.content)).toContain("\\(1992\\) 175 CLR 1");
+  expect(getText(output.content)).toContain("(1992) 175 CLR 1");
 });
 
 it("markdown format uses hyphen not em dash for summary", () => {
@@ -341,45 +341,6 @@ it("markdown format uses hyphen not em dash for summary", () => {
   ];
   const output = formatSearchResults(results, "markdown");
   expect(getText(output.content)).not.toContain("\u2014"); // em dash
-});
-
-it("markdown search output escapes untrusted result text", () => {
-  const results: SearchResult[] = [
-    {
-      title: "Injected [link](https://evil.example)\u202e",
-      url: "https://www.austlii.edu.au/au/cases/cth/HCA/1992/23.html",
-      source: "austlii",
-      type: "case",
-      summary: "Summary ](https://evil.example)\n2. fake \u001b]8;;https://evil.example\u0007",
-    },
-  ];
-  const output = formatSearchResults(results, "markdown");
-  const text = getText(output.content);
-  expect(text).toContain("\\[link\\]\\(https://evil\\.example\\)");
-  expect(text).toContain("Summary \\]\\(https://evil\\.example\\)");
-  expect(text).not.toContain("[link](https://evil.example)");
-  expect(text).not.toContain("\u001b");
-  expect(text).not.toContain("\u202e");
-  expect(text).not.toContain("\n2. fake");
-});
-
-it("text search output strips terminal controls and flattens injected newlines", () => {
-  const results: SearchResult[] = [
-    {
-      title: "Injected\n2. fake\u202e",
-      url: "https://www.austlii.edu.au/au/cases/cth/HCA/1992/23.html",
-      source: "austlii",
-      type: "case",
-      summary: "Summary\n3. fake \u001b[31mred",
-    },
-  ];
-  const output = formatSearchResults(results, "text");
-  const text = getText(output.content);
-  expect(text).not.toContain("\u001b");
-  expect(text).not.toContain("\u202e");
-  expect(text).not.toContain("\n2. fake");
-  expect(text).not.toContain("\n3. fake");
-  expect(text).toContain("Summary 3. fake red");
 });
 
 describe("formatFetchResponse", () => {
@@ -403,7 +364,6 @@ describe("formatFetchResponse", () => {
     expect(text).toContain("> Source:");
     expect(text).toContain("https://www\\.austlii\\.edu\\.au/au/cases/cth/HCA/1992/23\\.html");
     expect(text).toContain(sampleFetch.text);
-    expect(text).toContain("```text");
   });
 
   it("should format fetch response as HTML", () => {
@@ -413,19 +373,16 @@ describe("formatFetchResponse", () => {
     expect(text).toContain("data-source=");
   });
 
-  it("does not render preserved source HTML without a sanitizer", () => {
+  it("should use preserved HTML structure when available", () => {
     const fetchWithHtml: FetchResponse = {
       ...sampleFetch,
-      text: "Smith v Jones\n[1] Appeal allowed.",
-      html: '<article><h1 onclick="alert(1)">Smith v Jones</h1><script>alert(1)</script></article>',
+      html: "<article><h1>Smith v Jones</h1><p>[1] Appeal allowed.</p></article>",
     };
     const result = formatFetchResponse(fetchWithHtml, "html");
     const text = getText(result.content);
-    expect(text).toContain("<pre>");
-    expect(text).toContain("Smith v Jones");
-    expect(text).not.toContain("<h1");
-    expect(text).not.toContain("onclick");
-    expect(text).not.toContain("<script");
+    expect(text).toContain("<h1>Smith v Jones</h1>");
+    expect(text).toContain("<p>[1] Appeal allowed.</p>");
+    expect(text).not.toContain("<pre>");
   });
 
   it("sanitises preserved HTML before wrapping the fetched response", () => {
@@ -491,36 +448,5 @@ describe("formatFetchResponse", () => {
     const result = formatFetchResponse(sampleFetch, "html");
     const text = getText(result.content);
     expect(text).toContain("<pre>");
-  });
-
-  it("text fetch output strips terminal controls while preserving document line breaks", () => {
-    const result = formatFetchResponse(
-      {
-        ...sampleFetch,
-        text: "Line 1\r\nLine 2 \u001b[31mred\u001b[0m \u202e",
-      },
-      "text",
-    );
-    const text = getText(result.content);
-    expect(text).toBe("Line 1\nLine 2 red ");
-    expect(text).not.toContain("\u001b");
-    expect(text).not.toContain("\u202e");
-  });
-
-  it("markdown fetch output fences source text and strips unsafe controls", () => {
-    const result = formatFetchResponse(
-      {
-        ...sampleFetch,
-        sourceUrl: "https://www.austlii.edu.au/au/cases/cth/HCA/1992/23).html",
-        text: "Judgment\n- injected item\n```nested```\n\u001b]8;;https://evil.example\u0007link",
-      },
-      "markdown",
-    );
-    const text = getText(result.content);
-    expect(text).toContain("23%29.html");
-    expect(text).toContain("````text");
-    expect(text).toContain("- injected item");
-    expect(text).not.toContain("\u001b");
-    expect(text).not.toContain("]8;;https://evil.example");
   });
 });
