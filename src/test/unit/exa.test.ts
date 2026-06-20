@@ -113,7 +113,10 @@ describe("searchAustliiViaExa", () => {
         url: "https://www4.austlii.edu.au/au/cases/cth/HCA/2018/34.html",
         title: "Hossain [2018] HCA 34",
       },
-      { url: "https://vvv.austlii.edu.au/au/cases/cth/HCA/2018/34.html", title: "Hossain (mirror)" },
+      {
+        url: "https://vvv.austlii.edu.au/au/cases/cth/HCA/2018/34.html",
+        title: "Hossain (mirror)",
+      },
     ]);
     const out = await searchAustliiViaExa("Hossain", caseOpts, 5);
     expect(out).toHaveLength(1);
