@@ -118,9 +118,11 @@ describe("search_cases cost-ordered fallback matrix", () => {
     searchAustLiiMock.mockRejectedValue(new CloudflareBlockedError("https://austlii", false));
     searchJadeWithStatusMock.mockResolvedValue({ results: [], status: "not_configured" });
     const { isError, text } = await callSearchCases("[2018] HCA 9");
+    const payload = JSON.parse(text) as { results?: Array<{ aglc4?: string }> };
     expect(isError).toBe(false);
     expect(text).toContain("HCA/2018/9.html");
     expect(text).toContain("citation-url");
+    expect(payload.results?.[0]?.aglc4).toBe("[2018] HCA 9");
     expect(searchExaMock).not.toHaveBeenCalled();
   });
 
