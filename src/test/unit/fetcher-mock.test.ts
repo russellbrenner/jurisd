@@ -31,8 +31,8 @@ vi.mock("file-type", () => ({
   fileTypeFromBuffer: vi.fn().mockResolvedValue(undefined),
 }));
 
-// Stub config explicitly. The ambient SESSION_COOKIE (and any AUSTLII_*
-// env) on this machine would otherwise be captured by the config singleton.
+// Stub config explicitly. Any ambient AUSTLII_* env on this machine would
+// otherwise be captured by the config singleton.
 const mockConfig = vi.hoisted(() => ({
   austlii: {
     userAgent: "test-austlii-ua/1.0",
@@ -44,11 +44,9 @@ const mockConfig = vi.hoisted(() => ({
     accept: "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
     acceptLanguage: "en-AU,en;q=0.9",
   },
-  source: {
-    userAgent: "jurisd-test",
+  fetch: {
+    userAgent: "jurisd-test-generic-ua",
     timeout: 5000,
-    sessionCookie: undefined as string | undefined,
-    baseUrl: "https://removed.invalid",
   },
   oalc: { enabled: true, source: "/tmp/fixture.jsonl" },
 }));
@@ -77,13 +75,6 @@ describe("fetchDocumentText AustLII routing (transport seam)", () => {
     mockConfig.oalc.enabled = true;
   });
 
-  it("throws a descriptive error for removed.invalid URLs with no session cookie", async () => {
-    mockConfig.source.sessionCookie = undefined;
-    await expect(fetchDocumentText("https://removed.invalid/article/67401")).rejects.toThrow(
-      /fetch_document_text.*source\.io/i,
-    );
-  });
-
   it("applies the classic-doc rewrite before fetching", async () => {
     getMock.mockResolvedValue(htmlResponse(AUSTLII_CLASSIC_JUDGMENT_HTML));
     await fetchDocumentText(MABO_URL);
@@ -97,8 +88,9 @@ describe("fetchDocumentText AustLII routing (transport seam)", () => {
     await fetchDocumentText(MABO_URL);
     const opts = getMock.mock.calls[0]?.[1] as { headers: Record<string, string> };
     expect(opts.headers["User-Agent"]).toBe("test-austlii-ua/1.0");
-    // Must NOT be the source UA (the precise v1 defect).
-    expect(opts.headers["User-Agent"]).not.toBe("jurisd-test");
+    // Must NOT be the generic-fetch UA (the precise v1 defect: AustLII used the
+    // wrong UA from the non-AustLII fetch config).
+    expect(opts.headers["User-Agent"]).not.toBe("jurisd-test-generic-ua");
     expect(opts.headers["Accept-Language"]).toBe("en-AU,en;q=0.9");
   });
 

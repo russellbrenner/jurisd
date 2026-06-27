@@ -40,6 +40,3 @@ export class RateLimiter {
 
 /** Rate limiter for AustLII: 10 requests per minute */
 export const austliiRateLimiter = new RateLimiter(10);
-
-/** Rate limiter for removed.invalid: 5 requests per minute */
-export const upstreamRateLimiter = new RateLimiter(5);

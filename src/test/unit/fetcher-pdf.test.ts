@@ -30,11 +30,9 @@ vi.mock("pdf-parse", () => ({
 vi.mock("file-type");
 vi.mock("../../config.js", () => ({
   config: {
-    source: {
+    fetch: {
       userAgent: "test-agent",
       timeout: 5000,
-      sessionCookie: undefined,
-      baseUrl: "https://removed.invalid",
     },
     austlii: {
       searchBase: "",
@@ -54,7 +52,6 @@ vi.mock("../../config.js", () => ({
 }));
 vi.mock("../../utils/rate-limiter.js", () => ({
   austliiRateLimiter: { throttle: vi.fn().mockResolvedValue(undefined) },
-  upstreamRateLimiter: { throttle: vi.fn().mockResolvedValue(undefined) },
 }));
 
 import { fetchDocumentText } from "../../services/fetcher.js";

@@ -132,20 +132,6 @@ const TOOL_COMMANDS: Record<string, ToolCommand> = {
     boolean: ["refresh", "includeInvalid"],
     array: [],
   },
-  "search-citing-cases": {
-    tool: "search_citing_cases",
-    positional: ["caseName"],
-    numeric: [],
-    boolean: [],
-    array: [],
-  },
-  "cache-cited-by": {
-    tool: "cache_cited_by",
-    positional: ["citeKey"],
-    numeric: [],
-    boolean: [],
-    array: [],
-  },
   bibliography: {
     tool: "bibliography",
     positional: [],
@@ -159,13 +145,6 @@ const TOOL_COMMANDS: Record<string, ToolCommand> = {
     numeric: ["year", "footnoteNumber"],
     boolean: [],
     array: ["keywords"],
-  },
-  "source-lookup": {
-    tool: "source_lookup",
-    positional: [],
-    numeric: ["articleId"],
-    boolean: [],
-    array: [],
   },
   "fetch-document-text": {
     tool: "fetch_document_text",

@@ -33,11 +33,11 @@ export interface Config {
     /** Accept-Language header sent on AustLII requests. */
     acceptLanguage: string;
   };
-  source: {
-    baseUrl: string;
+  fetch: {
+    /** User-Agent sent on generic (non-AustLII) document fetches. */
     userAgent: string;
+    /** Timeout in milliseconds for generic document fetches. */
     timeout: number;
-    sessionCookie?: string;
   };
   defaults: {
     searchLimit: number;
@@ -58,7 +58,7 @@ export interface Config {
     fetchByDefault: boolean;
   };
   citedBy: {
-    /** Cache cited-by results from removed.invalid citator lookups. */
+    /** Cache locally stored cited-by results. */
     enabled: boolean;
     /** Download source files for the top-N citing cases when caching cited-by results. */
     downloadSources: boolean;
@@ -138,11 +138,9 @@ export function loadConfig(): Config {
         "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
       acceptLanguage: process.env.AUSTLII_ACCEPT_LANGUAGE || "en-AU,en;q=0.9",
     },
-    source: {
-      baseUrl: process.env.SOURCE_BASE_URL || "https://removed.invalid",
-      userAgent: process.env.SOURCE_USER_AGENT || "jurisd/0.1.0 (legal research tool)",
-      timeout: parseInt(process.env.SOURCE_TIMEOUT || "15000", 10),
-      sessionCookie: process.env.SESSION_COOKIE || undefined,
+    fetch: {
+      userAgent: process.env.AUSLAW_FETCH_USER_AGENT || "jurisd/0.1.0 (legal research tool)",
+      timeout: parseInt(process.env.AUSLAW_FETCH_TIMEOUT || "15000", 10),
     },
     defaults: {
       searchLimit: parseInt(process.env.DEFAULT_SEARCH_LIMIT || "10", 10),
