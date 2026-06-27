@@ -121,7 +121,7 @@ function austliiSearchWarning(error) {
 export function createMcpServer() {
     const server = new McpServer({
         name: "jurisd",
-        version: "0.1.0",
+        version: "0.5.0",
         description: "Australian legislation and case law searcher with document retrieval.",
     });
     // ── search_legislation ────────────────────────────────────────────────────

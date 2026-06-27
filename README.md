@@ -51,7 +51,7 @@ jurisd --help
 ```
 
 Use the GitHub tarball form only for persistent installs before the npm registry
-package is published. After 0.4.0 is available on npm, prefer:
+package is published. After 0.5.0 is available on npm, prefer:
 
 ```bash
 npm install -g jurisd
