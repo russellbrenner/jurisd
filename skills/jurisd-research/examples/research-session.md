@@ -85,15 +85,17 @@ cite {
 
 ### 6. (Optional) who relies on it
 
-A removed.invalid session cookie is configured, so I trace later citing cases and cache them:
+Who-cites-what is offline-only. With a decisions module installed, I trace later
+citing cases with `find_citing`:
 
 ```
-cache_cited_by { citeKey: "mabo1992" }
-→ { citeKey: "mabo1992", totalCount: 1840, cached: 27, sourcesDownloaded: 5 }
+find_citing { target: "Mabo v Queensland (No 2) [1992] HCA 23" }
+→ { count: 27, results: [ { caseName: "...", neutralCitation: "...",
+    provenance: { ... } }, ... ] }
 ```
 
-If no cookie were set, I would use the offline `find_citing { target: "Mabo v
-Queensland (No 2) [1992] HCA 23" }` against an installed decisions module instead.
+Without a decisions module covering the area, `find_citing` returns a typed
+not-found and I fall back to topic search.
 
 ### 7. Emit the bibliography
 

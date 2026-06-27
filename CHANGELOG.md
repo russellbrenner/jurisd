@@ -14,10 +14,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   with manifest validation against a vendored schema and lazy per-module DuckDB
   attach over parquet (`src/services/modules.ts`, `src/data/`), holding metadata only
   in RSS and degrading gracefully when `@duckdb/node-api` is absent.
-- **5 new MCP tools** (tool surface 10 → 15, under the 18 ceiling): `get_provision`
+- **5 new MCP tools** (tool surface 7 → 12): `get_provision`
   (deterministic provision lookup), `get_act_structure` (recursive-CTE containment
-  tree over `act_provision` edges), `find_citing` (offline twin of
-  `search_citing_cases` over `cites`/`considers` edges), `semantic_search_local`
+  tree over `act_provision` edges), `find_citing` (offline citator over
+  `cites`/`considers` edges), `semantic_search_local`
   (local bge-small query embedding + cosine ranking with facet pre-filters), and
   `list_data_modules` (registry introspection). All carry
   `metadata.source = "local_module"` with name/version/snapshot and a staleness advisory.
@@ -43,20 +43,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `docker-compose.yaml` smoke-test/build example honest about the stdio per-invocation
   model (idle container + `exec` handshake, not a long-lived daemon), a `.dockerignore`,
   a `scripts/docker-handshake.mjs` stdio `initialize`+`tools/list` verifier (docker or
-  podman; asserts the 15-tool surface), and `docs/DOCKER.md` covering Claude Code wiring
+  podman; asserts the 12-tool surface), and `docs/DOCKER.md` covering Claude Code wiring
   (`docker run -i ...`), `/data/modules` volume mounting via `JURISD_MODULES_DIR`, and the
   container env vars.
 - **`jurisd-research` Claude Code skill** (`skills/jurisd-research/`): a bundled skill
   giving the agent expert jurisd usage from day 0 — tool decision guidance (local-first
-  vs live fallback, `resolve_citation` vs `search_cases`, `find_citing` vs
-  `search_citing_cases`), AGLC4 citation workflows, the typical research flow, module
+  vs live fallback, `resolve_citation` vs `search_cases`, offline `find_citing`),
+  AGLC4 citation workflows, the typical research flow, module
   management, and a worked example transcript (`examples/research-session.md`).
   Documented in the README and `docs/INSTALL.md` (copy into `~/.claude/skills/`).
 
 ### Changed
 
-- **BREAKING**: Consolidated the MCP tool surface from 18 tools to 10 (tool-surface
-  consolidation). Variants of a single intent are now merged behind a
+- **BREAKING**: Consolidated the MCP tool surface (tool-surface consolidation).
+  Variants of a single intent are now merged behind a
   `mode`/`op`/`action`/`by` discriminator. Underlying behaviour is unchanged; only tool names
   and input shapes changed. No aliases are provided for the old names (pre-1.0 breaking cut).
 
@@ -67,8 +67,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   | `generate_pinpoint`      | `format_citation` with `mode: pinpoint`                          |
   | `validate_citation`      | `resolve_citation` with `mode: validate`                         |
   | `search_by_citation`     | `resolve_citation` with `mode: auto` (default) or `mode: search` |
-  | `resolve_source_article`   | `source_lookup` with `by: article_id`                              |
-  | `source_citation_lookup`   | `source_lookup` with `by: citation`                                |
   | `cache_citation`         | `cite` with `action: add` (default)                              |
   | `check_source_freshness` | `cite` with `action: refresh_source`                             |
   | `get_cached_citation`    | `bibliography` with `op: get`                                    |
@@ -76,8 +74,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   | `export_bibliography`    | `bibliography` with `op: export`                                 |
   | `get_cited_by`           | `bibliography` with `op: cited_by`                               |
 
-  Unchanged: `search_legislation`, `search_cases`, `fetch_document_text`,
-  `search_citing_cases`, `cache_cited_by`.
+  Unchanged: `search_legislation`, `search_cases`, `fetch_document_text`.
 
 - Split server construction out of the entry point: `src/server.ts` exports
   `createMcpServer()` (tool registration); `src/index.ts` retains transport wiring only.
@@ -94,43 +91,35 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Day-0 front-door docs overhaul for public release: rewrote `README.md` around the
   local-first three-layer story (local data modules → live AustLII → OALC fallback), a
-  grouped 15-tool table, the data-module / `fetch-module` / baseline-vs-domain-specialised /
+  grouped 12-tool table, the data-module / `fetch-module` / baseline-vs-domain-specialised /
   BYOK-adapter sections, an honest quality section linking the `jurisd-data` gold-set eval
   (strict + aligned metrics), and per-source licensing notes (code MIT; module data per-source,
   AustLII excluded, VIC/NT recipe-only). Added `docs/INSTALL.md` with day-0 install paths
   (npx-from-GitHub, local clone, Claude Code config), the all-optional env-var reference, the
   `fetch-module` install flow, and the offline/baseline guarantee.
-- Terminology audit across all docs: neutralised freemium-flavoured "premium" framing of the
-  removed.invalid source to subscription/open-access wording; confirmed no stale `auslaw` prose
-  references remain.
+- Removed the upstream-source integration: the dedicated citation/citator tools and
+  their configuration were dropped, leaving AustLII as the live search backend and the
+  local data modules as the offline recall layer.
+- Terminology audit across all docs: confirmed no stale `auslaw` prose references remain.
 
 ## [0.1.0] - 2026-06-12
 
-First tagged release: a snapshot of the server as it stands. 18 MCP tools for Australian and NZ
-legal research across AustLII and removed.invalid.
+First tagged release: a snapshot of the server as it stands. MCP tools for Australian and NZ
+legal research over AustLII.
 
 ### Tools
 
-- **Search**: `search_cases`, `search_legislation` (AustLII + removed.invalid results merged and
-  deduplicated by neutral citation; smart query detection, jurisdiction filtering, relevance/date
-  sort selection, title-match boosting), `search_by_citation`
-- **Documents**: `fetch_document_text` (HTML, PDF, OCR via Tesseract; removed.invalid via RPC when a
-  session cookie is configured), `check_source_freshness`
-- **removed.invalid**: `resolve_source_article`, `source_citation_lookup`, `search_citing_cases` (citator via
-  reverse-engineered RPC)
+- **Search**: `search_cases`, `search_legislation` (smart query detection, jurisdiction
+  filtering, relevance/date sort selection, title-match boosting), `search_by_citation`
+- **Documents**: `fetch_document_text` (HTML and digital-text PDF), `check_source_freshness`
 - **Citations (AGLC4)**: `format_citation`, `format_short_citation`, `validate_citation`,
   `generate_pinpoint`
-- **Caching and bibliography**: `cache_citation`, `get_cached_citation`, `cache_cited_by`,
+- **Caching and bibliography**: `cache_citation`, `get_cached_citation`,
   `get_cited_by`, `list_bibliography`, `export_bibliography`
 
 ### Added
 
 - AustLII search with authority-based ranking, pagination, and multiple search methods
-- removed.invalid search integration via AustLII cross-referencing inside `search_cases` /
-  `search_legislation` (`searchUpstream()`, `mergeSearchResults()`, `deduplicateResults()`); graceful
-  fallback to AustLII-only results when removed.invalid resolution fails
-- removed.invalid RPC protocol implementation (`resolveRecords` search, `fetchRequest` fetch,
-  `RemoteService` citator)
 - Citation extraction and AGLC4 formatting (neutral and reported formats, paragraph-number
   preservation for pinpoints)
 - Source store and citation cache with bibliography export

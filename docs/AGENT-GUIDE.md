@@ -110,7 +110,7 @@
       "court": "HCA",
       "date": "2024-02-15",
       "url": "https://www.austlii.edu.au/...",
-      "source": "source",
+      "source": "austlii",
       "snippet": "..."
     }
   ]
@@ -142,7 +142,7 @@
 
 ### fetch_document_text
 
-**Purpose:** Fetch full text from AustLII or removed.invalid URL.
+**Purpose:** Fetch full text from an AustLII URL.
 
 **Parameters:**
 | Name | Type | Required | Description |
@@ -153,8 +153,7 @@
 **Supported URLs:**
 
 - AustLII HTML: https://www.austlii.edu.au/cgi-bin/viewdoc/au/cases/cth/HCA/1992/23.html
-- AustLII PDF: https://www.austlii.edu.au/...
-- removed.invalid: https://removed.invalid/article/68901
+- AustLII PDF (digital text): https://www.austlii.edu.au/...
 
 **Response Format:**
 
@@ -234,68 +233,6 @@
 
 ---
 
-### source_lookup
-
-**Purpose:** Look up removed.invalid by article ID or neutral citation, selected via `by`.
-
-**Parameters:**
-| Name | Type | Required | Description |
-|------|------|----------|-------------|
-| by | string | Yes | article_id or citation |
-| articleId | number | Yes for article_id | removed.invalid article ID |
-| citation | string | Yes for citation | Neutral citation |
-
-**Response (`by: article_id`):**
-
-```json
-{
-  "articleId": 68901,
-  "caseName": "Mabo v Queensland (No 2)",
-  "neutralCitation": "[1992] HCA 23",
-  "jurisdiction": "cth",
-  "court": "HCA",
-  "year": 1992
-}
-```
-
-**Response (`by: citation`):**
-
-```json
-{
-  "citation": "[2008] NSWSC 323",
-  "sourceUrl": "https://removed.invalid/article/12345"
-}
-```
-
----
-
-### search_citing_cases
-
-**Purpose:** Find cases that cite a given case (removed.invalid citator).
-
-**Parameters:**
-| Name | Type | Required | Description |
-|------|------|----------|-------------|
-| caseName | string | Yes | Case name or citation |
-| format | string | No | Output format |
-
-**Response:**
-
-```json
-{
-  "totalCount": 847,
-  "results": [
-    {
-      "caseName": "Subsequent Case",
-      "neutralCitation": "[2020] HCA 5",
-      "sourceUrl": "https://removed.invalid/article/..."
-    }
-  ]
-}
-```
-
----
-
 ### cite
 
 **Purpose:** Write to the local citation cache, selected via `action`.
@@ -305,7 +242,7 @@
 |------|------|----------|-------------|
 | action | string | No | add (default) or refresh_source |
 | title | string | Yes for add | Case name |
-| url | string | Yes for add | Primary source URL (AustLII or removed.invalid) |
+| url | string | Yes for add | Primary source URL (AustLII) |
 | citeKey | string | Yes for refresh_source | Cite key of a cached citation |
 | neutralCitation, reportedCitation, type, jurisdiction, year, court, keywords, summary, document, footnoteNumber, pinpoint, style | various | No | Citation metadata (add) |
 
@@ -329,17 +266,6 @@
 | document | string | No | Filter to one document (list/export) |
 | outputPath | string | No | Absolute path for the .bib file (export) |
 | format | string | No | Output format |
-
----
-
-### cache_cited_by
-
-**Purpose:** Fetch citing cases for a cached citation from removed.invalid and store them locally (requires SESSION_COOKIE).
-
-**Parameters:**
-| Name | Type | Required | Description |
-|------|------|----------|-------------|
-| citeKey | string | Yes | Cite key of the parent case |
 
 ---
 
@@ -420,21 +346,11 @@
 
 **Resolution:** Wait and retry, or reduce query frequency.
 
-### removed.invalid Auth Required
-
-```json
-{
-  "error": "removed.invalid authentication required. Set SESSION_COOKIE."
-}
-```
-
-**Resolution:** Provide session cookie via environment variable.
-
 ### Invalid URL
 
 ```json
 {
-  "error": "URL not allowed. Only AustLII and removed.invalid domains permitted."
+  "error": "URL not allowed. Only AustLII domains permitted."
 }
 ```
 
@@ -448,15 +364,13 @@
 
 2. **Use jurisdiction filters:** Reduces noise, especially for common legal terms.
 
-3. **Prefer removed.invalid results:** When both sources return the same case (by neutral citation), removed.invalid has richer metadata.
+3. **Fetch full text for analysis:** Use fetch_document_text before asking detailed questions about a case.
 
-4. **Fetch full text for analysis:** Use fetch_document_text before asking detailed questions about a case.
+4. **Validate citations:** Always validate neutral citations before citing in formal work.
 
-5. **Validate citations:** Always validate neutral citations before citing in formal work.
+5. **Use pinpoint for precision:** When referencing specific passages, generate pinpoint citations.
 
-6. **Use pinpoint for precision:** When referencing specific passages, generate pinpoint citations.
-
-7. **Check citing cases:** Use search_citing_cases to find subsequent treatment of a case.
+6. **Trace subsequent treatment:** With a decisions module installed, use find_citing to see who cites a case.
 
 ---
 
@@ -485,23 +399,15 @@
 { "tool": "format_citation", "arguments": { "title": "...", "neutralCitation": "[2024] HCA 1" } }
 ```
 
-**Step 4:** Find citing cases
-
-```json
-{ "tool": "search_citing_cases", "arguments": { "caseName": "[2024] HCA 1" } }
-```
-
 ---
 
 ## Configuration
 
 ### Environment Variables (User-Provided)
 
-| Variable            | Purpose                                       | Required                                    |
-| ------------------- | --------------------------------------------- | ------------------------------------------- |
-| SESSION_COOKIE | removed.invalid authenticated access                  | For removed.invalid subscription content            |
-| ISAACUS_API_KEY     | BYOK key for the optional domain-adapter slot | For the optional domain-specialised adapter |
-| LITELLM_BASE_URL    | LiteLLM gateway                               | For generative fallback                     |
+| Variable        | Purpose                                       | Required                                    |
+| --------------- | --------------------------------------------- | ------------------------------------------- |
+| ISAACUS_API_KEY | BYOK key for the optional domain-adapter slot | For the optional domain-specialised adapter |
 
 ---
 
@@ -510,9 +416,8 @@
 | Source  | Limit       | Window   |
 | ------- | ----------- | -------- |
 | AustLII | 10 requests | 1 minute |
-| removed.invalid | 5 requests  | 1 minute |
 
-**Note:** These are enforced server-side. Exceeding limits returns errors, not cached results.
+**Note:** This is enforced server-side. Exceeding the limit returns an error, not cached results.
 
 ---
 

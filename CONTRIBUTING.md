@@ -293,7 +293,7 @@ src/
 ├── data/                 # Data-module manifest schema + types
 ├── services/
 │   ├── austlii.ts       # AustLII search integration
-│   ├── source.ts          # removed.invalid citation resolution & cross-referencing
+│   ├── modules.ts       # Local data-module loader (DuckDB over parquet)
 │   └── fetcher.ts       # Document text retrieval
 ├── utils/
 │   ├── formatter.ts      # Output formatting

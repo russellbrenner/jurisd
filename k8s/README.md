@@ -94,20 +94,17 @@ All configuration is managed through the ConfigMap (`k8s/configmap.yaml`). To mo
 
 ### Available Configuration Options
 
-| Variable                | Default                                           | Description                  |
-| ----------------------- | ------------------------------------------------- | ---------------------------- |
-| `AUSTLII_SEARCH_BASE`   | `https://www.austlii.edu.au/cgi-bin/sinosrch.cgi` | AustLII search API endpoint  |
-| `AUSTLII_REFERER`       | `https://www.austlii.edu.au/forms/search1.html`   | Referer header for AustLII   |
-| `AUSTLII_USER_AGENT`    | Mozilla/5.0...                                    | User agent string            |
-| `AUSTLII_TIMEOUT`       | `60000`                                           | Request timeout (ms)         |
-| `SOURCE_BASE_URL`         | `https://removed.invalid`                                 | removed.invalid base URL             |
-| `SOURCE_USER_AGENT`       | `jurisd/0.1.0 (legal research tool)`              | removed.invalid user agent           |
-| `SOURCE_TIMEOUT`          | `15000`                                           | removed.invalid request timeout (ms) |
-| `DEFAULT_SEARCH_LIMIT`  | `10`                                              | Default search results       |
-| `MAX_SEARCH_LIMIT`      | `50`                                              | Maximum search results       |
-| `DEFAULT_OUTPUT_FORMAT` | `json`                                            | Default output format        |
-| `DEFAULT_SORT_BY`       | `auto`                                            | Default sort order           |
-| `LOG_LEVEL`             | `1`                                               | Logging level (0-3)          |
+| Variable                | Default                                           | Description                 |
+| ----------------------- | ------------------------------------------------- | --------------------------- |
+| `AUSTLII_SEARCH_BASE`   | `https://www.austlii.edu.au/cgi-bin/sinosrch.cgi` | AustLII search API endpoint |
+| `AUSTLII_REFERER`       | `https://www.austlii.edu.au/forms/search1.html`   | Referer header for AustLII  |
+| `AUSTLII_USER_AGENT`    | Mozilla/5.0...                                    | User agent string           |
+| `AUSTLII_TIMEOUT`       | `60000`                                           | Request timeout (ms)        |
+| `DEFAULT_SEARCH_LIMIT`  | `10`                                              | Default search results      |
+| `MAX_SEARCH_LIMIT`      | `50`                                              | Maximum search results      |
+| `DEFAULT_OUTPUT_FORMAT` | `json`                                            | Default output format       |
+| `DEFAULT_SORT_BY`       | `auto`                                            | Default sort order          |
+| `LOG_LEVEL`             | `1`                                               | Logging level (0-3)         |
 
 ## Scaling
 
