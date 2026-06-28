@@ -7,7 +7,21 @@ gives you, or the AI assistant you already use, fast answers from legislation an
 case law where **every claim traces back to the primary source**. It runs locally
 by default, so confidential and privileged work never has to leave your machine.
 
-![Your question goes to jurisd on your own machine, which retrieves from Australian and New Zealand primary law and returns an answer with a verifiable citation to the primary source.](docs/diagrams/provenance-loop.svg)
+```mermaid
+flowchart LR
+    subgraph machine["Your machine (local-first)"]
+        you["You / your AI assistant<br/>practitioner · researcher · agent"]
+        subgraph jurisd["jurisd"]
+            modules["Local data modules<br/>provision lookup · citation graph · semantic search"]
+            live["Live research<br/>AustLII + Exa-backed discovery"]
+            aglc4["AGLC4 citations"]
+        end
+        you -->|question| jurisd
+    end
+    law["Australian and NZ primary law<br/>legislation · case law"]
+    live -->|retrieves| law
+    law -->|"answer + verifiable citation to the primary source"| you
+```
 
 Guiding principle: **no source span, no trusted legal claim.** Vector recall is
 recall, not authority; a model's output is a candidate until you can see its
@@ -73,7 +87,7 @@ over stdio in one step. Before the npm registry package is published, use
 
 ### Install the CLI persistently from NPM or directly from GitHub
 
-#### npm published package 
+#### npm published package
 
 ```bash
 npm install -g jurisd
@@ -86,6 +100,7 @@ jurisd --help
 npm install -g https://github.com/russellbrenner/jurisd/archive/refs/heads/main.tar.gz
 jurisd --help
 ```
+
 **NB:** Bare git installs such as `npm install -g github:russellbrenner/jurisd` depend
 on npm's `install-links` setting and can leave a broken global bin on hosts where
 `install-links=false`.
