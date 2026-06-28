@@ -9,18 +9,18 @@ by default, so confidential and privileged work never has to leave your machine.
 
 ```mermaid
 flowchart LR
-    subgraph machine["Your machine (local-first)"]
-        you["You / your AI assistant<br/>practitioner · researcher · agent"]
-        subgraph jurisd["jurisd"]
-            modules["Local data modules<br/>provision lookup · citation graph · semantic search"]
-            live["Live research<br/>AustLII + Exa-backed discovery"]
-            aglc4["AGLC4 citations"]
-        end
-        you -->|question| jurisd
-    end
-    law["Australian and NZ primary law<br/>legislation · case law"]
-    live -->|retrieves| law
-    law -->|"answer + verifiable citation to the primary source"| you
+    q["Query: a case name<br/>or cases citing X"]
+    q --> route{"In a local module"}
+    route -->|"yes, offline"| local["Local recall:<br/>provision lookup,<br/>semantic search,<br/>citation graph"]
+    route -->|no| live{"AustLII reachable"}
+    live -->|"Cloudflare-blocked"| exa["Exa discovery<br/>or direct citation URL"]
+    live -->|yes| fetch
+    exa --> fetch["Fetch AustLII document<br/>HTML or PDF"]
+    local --> src["Primary source obtained"]
+    fetch --> src
+    src --> aglc4["Format AGLC4 citation"]
+    aglc4 --> trace["Trace cited-by and<br/>citing cases<br/>via the citation graph"]
+    trace --> out["Result:<br/>case text, AGLC4 citation,<br/>and citing cases,<br/>each linked to its source"]
 ```
 
 Guiding principle: **no source span, no trusted legal claim.** Vector recall is
