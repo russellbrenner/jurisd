@@ -1,35 +1,63 @@
 # jurisd
 
-A command-line, terminal-user-interface and MCP-server Australian & NZ legal research tool, built
-**local-first**. jurisd gives an AI assistant a fast, offline-capable recall
-layer over installed legal data modules — deterministic provision lookup,
-local semantic search, and a citation graph — and falls back to live AustLII
-search and an Open Australian Legal Corpus (OALC) layer when the answer is not
-in a local module.
+**Source-grounded Australian & New Zealand legal research, on your own machine.**
 
-The design tenet is **degrade visibly, never silently**: a missing optional
-dependency, an absent API key, or an uninstalled module disables only the
-feature that needs it and is reported back, never swallowed. With no key and no
-network, the local-module recall path still answers.
+jurisd is an open, local-first research and drafting workbench for AU/NZ law. It
+gives you, or the AI assistant you already use, fast answers from legislation and
+case law where **every claim traces back to the primary source**. It runs locally
+by default, so confidential and privileged work never has to leave your machine.
 
-**Status:** pre-1.0, day-0 release candidate. 12 MCP tools across live research,
-citation/bibliography, and local data modules.
+![Your question goes to jurisd on your own machine, which retrieves from Australian and New Zealand primary law and returns an answer with a verifiable citation to the primary source.](docs/diagrams/provenance-loop.svg)
 
-## What jurisd is
+Guiding principle: **no source span, no trusted legal claim.** Vector recall is
+recall, not authority; a model's output is a candidate until you can see its
+source and check it.
 
-jurisd answers Australian (and New Zealand) legal-research questions from an AI
-assistant. It has three answer sources, tried in precedence order:
+> _Previously published as `auslaw-mcp`._
 
-1. **Local data modules (Layer 1)** — installed parquet bundles holding
-   legislation and decisions with provision-level structure, citation edges, and
-   chunk embeddings. Answered offline, no network, no key. This is the
-   **local-first** core: deterministic provision lookup, an Act containment tree,
-   an offline citation graph, and local semantic search.
-2. **Live AustLII (Layer 2)** — natural-language case and legislation search over
-   AustLII, with authority-based ranking, paragraph-pinpoint extraction, full-text
-   fetch (HTML + PDF), and AGLC4 citation formatting.
-3. **OALC fallback (Layer 3)** — an Open Australian Legal Corpus layer that backs
-   the live layer when a direct fetch is blocked.
+**Status:** v0.5.0, pre-1.0. The surface that ships today is a CLI, a TUI search
+shell, and a set of tools the AI assistant you already run can call, across live
+research, citation and bibliography work, and local data modules. The longer arc
+is in [Where this is heading](#where-this-is-heading).
+
+## Why jurisd is different
+
+- **Traceable, not hallucinated.** Every result links to its primary source (an
+  `austlii.edu.au` URL, the provision text, an AGLC4 citation). You verify it; you
+  do not take its word.
+- **Local-first and private.** Recall, provision lookup, and the citation graph
+  work offline over installed corpora. Your matter stays on your machine.
+- **Australian-law-native.** All AU/NZ jurisdictions, jurisdiction-aware search,
+  AGLC4 citation formatting.
+- **Degrades visibly, never silently.** A missing key, dependency, or module
+  disables only the feature that needs it and says so. With no key and no network,
+  local-module recall still answers.
+
+## Who it's for
+
+- The **practitioner** who just wants to ask a question and get an answer they can
+  stand behind in front of a client or a court.
+- The **researcher or student** who needs to trace authority, not just read a
+  summary.
+- The **terminal-native power user** who wants scriptable, composable legal tools.
+- The **builder** wiring AU/NZ legal research into their own AI agent.
+
+## How jurisd answers
+
+jurisd has three answer sources, tried in precedence order:
+
+1. **Local data modules** (offline, no network, no key). Installed parquet bundles
+   holding legislation and decisions with provision-level structure, citation
+   edges, and chunk embeddings. This is the local-first core: deterministic
+   provision lookup, an Act containment tree, an offline citation graph, and local
+   semantic search.
+2. **Live research over AustLII.** Natural-language case and legislation search,
+   full-text fetch (HTML and PDF), and AGLC4 formatting. AustLII's own search sits
+   behind a Cloudflare challenge, so discovery is recovered through Exa-backed
+   search (and direct citation URLs); the documents returned are AustLII primary
+   sources throughout. See [Tools](#tools) for the detail.
+3. **OALC fallback.** An Open Australian Legal Corpus layer that backs the live
+   layer when a direct fetch is blocked.
 
 ## Quick start
 
@@ -116,7 +144,7 @@ and AGLC4 prompts once the `jurisd` MCP server is registered.
 | --------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
 | `search_cases`        | Natural-language case-law search across all AU/NZ jurisdictions; authority ranking; title/phrase/boolean methods; pagination. |
 | `search_legislation`  | Search AU/NZ legislation with the same method/jurisdiction/sort controls.                                                     |
-| `fetch_document_text` | Fetch full text from an AustLII URL (HTML, PDF).                                                                               |
+| `fetch_document_text` | Fetch full text from an AustLII URL (HTML, PDF).                                                                              |
 
 > **AustLII sits behind Cloudflare.** AustLII now serves a JavaScript
 > managed-challenge that automated clients — including TLS-impersonating ones —
@@ -124,11 +152,11 @@ and AGLC4 prompts once the `jurisd` MCP server is registered.
 > directly. Configure a **fallback source**; results are still AustLII primary
 > sources (`austlii.edu.au` URLs) recovered through another channel.
 >
-> | Fallback            | Env var               | Cost           | You gain                                                                                                        | You lose                                                                                                                                    |
-> | ------------------- | --------------------- | -------------- | --------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
-> | **Direct citation** | none                  | Free           | Queries containing a neutral citation such as `[2018] HCA 9` resolve directly to the canonical AustLII case URL. | Citation-only. It is not general natural-language search.                                                                                   |
-> | **Exa**             | `EXA_API_KEY`         | Paid/free tier | Search discovery returns canonical AustLII case/legislation URLs, even for obscure cases.                        | Discovery only (URL + citation); full text is fetched separately.                                                                           |
-> | **none**            | -                     | -              | -                                                                                                               | Search returns a degraded result whose warning names the env vars; document fetch still falls back to the local OALC corpus when available. |
+> | Fallback            | Env var       | Cost           | You gain                                                                                                         | You lose                                                                                                                                    |
+> | ------------------- | ------------- | -------------- | ---------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
+> | **Direct citation** | none          | Free           | Queries containing a neutral citation such as `[2018] HCA 9` resolve directly to the canonical AustLII case URL. | Citation-only. It is not general natural-language search.                                                                                   |
+> | **Exa**             | `EXA_API_KEY` | Paid/free tier | Search discovery returns canonical AustLII case/legislation URLs, even for obscure cases.                        | Discovery only (URL + citation); full text is fetched separately.                                                                           |
+> | **none**            | -             | -              | -                                                                                                                | Search returns a degraded result whose warning names the env vars; document fetch still falls back to the local OALC corpus when available. |
 >
 > Resolution order: direct citation URL when present, then Exa, then a degraded
 > result. The document source remains AustLII throughout.
@@ -143,12 +171,12 @@ commands exit 4 for degraded source coverage.
 
 ### Citation + bibliography (AGLC4)
 
-| Tool                  | What it does                                                                                                         |
-| --------------------- | -------------------------------------------------------------------------------------------------------------------- |
-| `format_citation`     | Format an AGLC4 citation. `mode`: `full` (default), `short`, `ibid`, `subsequent`, `pinpoint`.                       |
-| `resolve_citation`    | Resolve a citation to its source. `mode`: `auto` (default), `validate` (AustLII existence check), `search`.          |
-| `cite`                | Write to the local citation cache. `action`: `add` (default) or `refresh_source` (conditional-HEAD freshness check). |
-| `bibliography`        | Read the local citation cache (no network). `op`: `get`, `list` (default), `export` (`.bib`), `cited_by`.            |
+| Tool               | What it does                                                                                                         |
+| ------------------ | -------------------------------------------------------------------------------------------------------------------- |
+| `format_citation`  | Format an AGLC4 citation. `mode`: `full` (default), `short`, `ibid`, `subsequent`, `pinpoint`.                       |
+| `resolve_citation` | Resolve a citation to its source. `mode`: `auto` (default), `validate` (AustLII existence check), `search`.          |
+| `cite`             | Write to the local citation cache. `action`: `add` (default) or `refresh_source` (conditional-HEAD freshness check). |
+| `bibliography`     | Read the local citation cache (no network). `op`: `get`, `list` (default), `export` (`.bib`), `cited_by`.            |
 
 ### Local data modules (offline recall)
 
@@ -162,7 +190,7 @@ and snapshot date (plus a staleness advisory when the snapshot is old).
 | ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | `get_provision`         | Deterministic provision lookup (e.g. `s 18` of an Act). No embedding, no ranking; typed not-found so the router can fall through.                      |
 | `get_act_structure`     | Containment tree of an Act (Act → Part → Division → section/schedule/clause) over `act_provision` edges, closed-world.                                 |
-| `find_citing`           | Documents in installed modules that cite a target, with each citation's provenance span.                                                              |
+| `find_citing`           | Documents in installed modules that cite a target, with each citation's provenance span.                                                               |
 | `semantic_search_local` | Vector recall: the query is embedded locally (bge-small, offline, no key) and ranked by cosine over chunk embeddings, with optional facet pre-filters. |
 | `list_data_modules`     | Introspect installed modules: coverage, doc/chunk counts, embedding descriptor, load status, snapshot date and staleness.                              |
 
@@ -279,6 +307,30 @@ an endnotes-boundary flood; citation precision is internal-ref over-firing on
 structural lines). The published module exposes the resulting data artefacts;
 evaluation reports remain part of the module publishing workflow until a public
 report location is available.
+
+## Where this is heading
+
+The sections above describe what ships today. The longer arc for jurisd is a
+secure, local-first workbench for high-trust legal work, built so serious
+reasoning can happen on your own machine with every act provable and nothing
+leaving without your say-so. Planned directions (design intent, not yet built):
+
+- **A sandboxed local agent runtime.** Run a research and drafting agent over your
+  own sources inside an isolated, encrypted workspace, so sensitive and privileged
+  material cannot leak.
+- **Tamper-evident provenance.** An auditable record of every step, and an
+  Evidence Pack you can hand a reviewer to verify process and sources (not legal
+  correctness).
+- **A first-class desktop app and TUI.** Matter view, source and provenance pane,
+  review queue, and a drafting canvas, for both terminal-native researchers and
+  practitioners who just want a clean interface.
+- **An SDK and plugin base,** with connectors for the tools you already use (Word,
+  Obsidian, Zotero).
+- **Source-anchored drafting.** Work-product where every assertion carries its
+  citation, gated by human review.
+
+Nothing in this list is claimed as built. See [ROADMAP.md](docs/ROADMAP.md) for
+the sequenced workstreams and review gates.
 
 ## Licensing
 

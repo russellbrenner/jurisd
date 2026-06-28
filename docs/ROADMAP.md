@@ -14,14 +14,31 @@ surface details live in the focused reference docs:
 
 jurisd is a pre-1.0 Australian and New Zealand legal research tool with:
 
-- MCP tools for live AustLII search, source fetching, citation formatting, and bibliography work.
+- Tools for live AustLII search, source fetching, citation formatting, and bibliography work, callable from the CLI or the AI assistant the user already runs.
+- AustLII discovery recovered through Exa-backed search and direct citation URLs when AustLII's own search is Cloudflare-blocked.
 - Local data-module plumbing for deterministic provision lookup, local semantic recall, and citation graph traversal.
-- CLI parity for the current MCP tool surface.
+- CLI parity for the current tool surface, plus a TUI search shell.
 - Day-0 packaging, Docker, and install documentation.
 
 The main product gap is not another historical implementation phase. It is
 turning the existing engine into a governed workbench with reviewable source
 custody, offline data modules, and operator-safe workflows.
+
+## North star
+
+Beyond the near-term workstreams, jurisd is heading toward a secure, local-first,
+sandboxed workbench for high-trust legal work: serious reasoning done on the
+user's own machine, every act provable, nothing leaving without explicit, recorded
+authorisation. The themes below are design intent, sequenced rather than
+simultaneous, and none is claimed as shipping:
+
+- A sandboxed local agent runtime with an encrypted workspace.
+- Tamper-evident provenance and Evidence Pack export.
+- A first-class desktop app alongside the CLI and TUI.
+- An SDK and plugin base, with connectors (Word, Obsidian, Zotero).
+- Source-anchored drafting, gated by human review.
+
+Each gets its own design before build.
 
 ## Workstreams
 
