@@ -1,0 +1,35 @@
+# jurisd provenance loop
+# Source for docs/diagrams/provenance-loop.svg
+# Render: d2 docs/diagrams/provenance-loop.d2 docs/diagrams/provenance-loop.svg
+direction: right
+
+machine: Your machine (local-first) {
+  style.stroke-dash: 3
+  style.border-radius: 12
+
+  you: |md
+    **You / your AI assistant**
+    practitioner · researcher · agent
+  |
+
+  jurisd: jurisd (local-first legal workbench) {
+    style.border-radius: 10
+    modules: Local data modules\n(provision lookup · citation graph · semantic search)
+    live: Live research\n(AustLII + Exa-backed discovery)
+    cite: AGLC4 citations
+  }
+
+  you -> jurisd: question
+}
+
+law: |md
+  **Australian & NZ primary law**
+  legislation · case law
+| {
+  style.border-radius: 10
+}
+
+machine.jurisd.live -> law: retrieves
+law -> machine.you: answer + verifiable citation\nto the primary source {
+  style.stroke-width: 3
+}
