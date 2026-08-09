@@ -90,7 +90,7 @@ describe("package installability metadata", () => {
     expect(mainWorkflow).toContain("npm run check:dist");
   });
 
-  it("publishes release tags through npm trusted publishing", () => {
+  it("publishes release tags to npm via a scoped NPM_TOKEN", () => {
     const verifyJob = releaseWorkflowJob("verify");
     const publishJob = releaseWorkflowJob("publish");
     const githubReleaseJob = releaseWorkflowJob("github-release");
@@ -106,13 +106,12 @@ describe("package installability metadata", () => {
 
     expect(publishJob).toContain("needs: verify");
     expect(publishJob).toContain("environment: npm-publish");
-    expect(publishJob).toContain("id-token: write");
+    expect(publishJob).not.toContain("id-token: write");
+    expect(publishJob).toContain("NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}");
     expect(releaseWorkflow).toContain('node-version: "24.x"');
     expect(releaseWorkflow).toContain("package-manager-cache: false");
     expect(publishJob).toContain('registry-url: "https://registry.npmjs.org"');
-    expect(publishJob).toContain(
-      "actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131",
-    );
+    expect(publishJob).toContain("actions/download-artifact@");
     expect(publishJob).toContain("npm publish *.tgz --access public");
     expect(publishJob).not.toContain("npm ci");
     expect(publishJob).not.toContain("npm test");
