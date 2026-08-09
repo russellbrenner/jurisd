@@ -1,3 +1,5 @@
+# ignore all dot files by default
+.*
 node_modules
 .DS_Store
 *.log
@@ -43,9 +45,13 @@ CLAUDE.md
 CLAUDE.local.md
 AGENTS.md
 .github/copilot-instructions.md
+.github/*
 .claude/*
 .remember/
 scratch/*
 scratch
 .vscode/*
 .husky/*
+.codex/*
+.playwright-mcp/*
+extraction-output/*
