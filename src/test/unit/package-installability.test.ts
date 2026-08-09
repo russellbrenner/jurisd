@@ -111,7 +111,7 @@ describe("package installability metadata", () => {
     expect(releaseWorkflow).toContain('node-version: "24.x"');
     expect(releaseWorkflow).toContain("package-manager-cache: false");
     expect(publishJob).toContain('registry-url: "https://registry.npmjs.org"');
-    expect(publishJob).toContain("actions/download-artifact@");
+    expect(publishJob).toMatch(/actions\/download-artifact@[0-9a-f]{40}/);
     expect(publishJob).toContain("npm publish *.tgz --access public");
     expect(publishJob).not.toContain("npm ci");
     expect(publishJob).not.toContain("npm test");
