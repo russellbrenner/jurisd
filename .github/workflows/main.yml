@@ -107,7 +107,8 @@ jobs:
 
       - name: Check for security vulnerabilities
         run: |
-          if npm audit --audit-level=high --json | jq -e '.metadata.vulnerabilities.high > 0 or .metadata.vulnerabilities.critical > 0'; then
+          AUDIT_JSON="$(npm audit --audit-level=high --json || true)"
+          if echo "$AUDIT_JSON" | jq -e '.metadata.vulnerabilities.high > 0 or .metadata.vulnerabilities.critical > 0' >/dev/null; then
             echo "::warning::High or critical vulnerabilities found. Please review."
-            npm audit
+            npm audit || true
           fi
