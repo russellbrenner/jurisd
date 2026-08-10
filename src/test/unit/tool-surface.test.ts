@@ -42,7 +42,7 @@ describe("tool surface", () => {
     expect(registeredToolNames()).toEqual(EXPECTED_TOOLS);
   });
 
-  it("keeps the handshake smoke scripts' expected tool count in sync", () => {
+  it("keeps the handshake smoke script's default tool count in sync, and lets release-smoke rely on it", () => {
     const dockerHandshake = fs.readFileSync(
       new URL("../../../scripts/docker-handshake.mjs", import.meta.url),
       "utf8",
@@ -52,6 +52,9 @@ describe("tool surface", () => {
       "utf8",
     );
     expect(dockerHandshake).toContain(`process.env.EXPECT_TOOLS ?? "${EXPECTED_TOOLS.length}"`);
-    expect(releaseSmoke).toContain(`EXPECT_TOOLS = ${EXPECTED_TOOLS.length};`);
+    // release-smoke.mjs should not override EXPECT_TOOLS when invoking
+    // docker-handshake.mjs, so its smoke run actually exercises (and would
+    // catch drift in) the default asserted above.
+    expect(releaseSmoke).not.toContain("EXPECT_TOOLS");
   });
 });
