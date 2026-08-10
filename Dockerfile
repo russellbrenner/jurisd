@@ -11,7 +11,7 @@
 # ── Stage 1: build the TypeScript ──────────────────────────────────────────
 # Base image pinned by multi-arch manifest digest (supply-chain: an immutable
 # base, not a mutable tag). Update the digest with the tag when bumping Node.
-FROM node:26-bookworm-slim@sha256:b16ca7b4dcfb20184e1c70f9ee30c6a75ed1da669cfafd6d2add4761b123d79f AS builder
+FROM node:26-bookworm-slim@sha256:cd565714d4da3e84bfd341e31448f81d47c6362198f152345297c9c1154e6341 AS builder
 
 WORKDIR /app
 
@@ -34,7 +34,7 @@ COPY src ./src
 RUN npm run build
 
 # ── Stage 2: slim runtime ──────────────────────────────────────────────────
-FROM node:26-bookworm-slim@sha256:b16ca7b4dcfb20184e1c70f9ee30c6a75ed1da669cfafd6d2add4761b123d79f AS runtime
+FROM node:26-bookworm-slim@sha256:cd565714d4da3e84bfd341e31448f81d47c6362198f152345297c9c1154e6341 AS runtime
 
 WORKDIR /app
 
