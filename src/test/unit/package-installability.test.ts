@@ -61,7 +61,7 @@ describe("package installability metadata", () => {
   it("keeps native recall stacks optional while installing the AustLII transport by default", () => {
     expect(packageJson.dependencies).not.toHaveProperty("@duckdb/node-api");
     expect(packageJson.dependencies).not.toHaveProperty("@huggingface/transformers");
-    expect(packageJson.dependencies).toHaveProperty("impit", "0.14.1");
+    expect(packageJson.dependencies).toHaveProperty("impit", "0.14.3");
     expect(packageJson.optionalDependencies).toHaveProperty("@duckdb/node-api");
     expect(packageJson.optionalDependencies).not.toHaveProperty("@huggingface/transformers");
     expect(packageJson.optionalDependencies).not.toHaveProperty("impit");
@@ -69,7 +69,7 @@ describe("package installability metadata", () => {
     const rootLock = packageLock.packages[""];
     expect(rootLock.dependencies).not.toHaveProperty("@duckdb/node-api");
     expect(rootLock.dependencies).not.toHaveProperty("@huggingface/transformers");
-    expect(rootLock.dependencies).toHaveProperty("impit", "0.14.1");
+    expect(rootLock.dependencies).toHaveProperty("impit", "0.14.3");
     expect(rootLock.optionalDependencies).toHaveProperty("@duckdb/node-api");
     expect(rootLock.optionalDependencies).not.toHaveProperty("@huggingface/transformers");
     expect(rootLock.optionalDependencies).not.toHaveProperty("impit");
