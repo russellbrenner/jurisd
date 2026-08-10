@@ -23,27 +23,9 @@ export interface SearchResult {
 }
 
 export type Jurisdiction =
-  | "cth"
-  | "vic"
-  | "nsw"
-  | "qld"
-  | "sa"
-  | "wa"
-  | "tas"
-  | "nt"
-  | "act"
-  | "federal"
-  | "nz"
-  | "other";
+  "cth" | "vic" | "nsw" | "qld" | "sa" | "wa" | "tas" | "nt" | "act" | "federal" | "nz" | "other";
 export type SearchMethod =
-  | "auto"
-  | "title"
-  | "phrase"
-  | "all"
-  | "any"
-  | "near"
-  | "legis"
-  | "boolean";
+  "auto" | "title" | "phrase" | "all" | "any" | "near" | "legis" | "boolean";
 
 export interface SearchOptions {
   jurisdiction?: Jurisdiction;

@@ -23,11 +23,7 @@ import { baselineAdapter, type DomainAdapter, type LocalChunk } from "./adapter.
 
 /** Load status of a discovered module. */
 export type ModuleStatus =
-  | "ready"
-  | "invalid"
-  | "yanked"
-  | "unsupported_schema_version"
-  | "capability_missing";
+  "ready" | "invalid" | "yanked" | "unsupported_schema_version" | "capability_missing";
 
 /** One discovered module: parsed manifest, absolute dir, load status. */
 export interface ModuleEntry {
