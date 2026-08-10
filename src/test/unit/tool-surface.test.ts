@@ -1,3 +1,4 @@
+import * as fs from "node:fs";
 import { describe, it, expect } from "vitest";
 import { createMcpServer } from "../../server.js";
 
@@ -39,5 +40,18 @@ describe("tool surface", () => {
 
   it("registers the expected 7 base + 5 local-module names, with no stale names", () => {
     expect(registeredToolNames()).toEqual(EXPECTED_TOOLS);
+  });
+
+  it("keeps the handshake smoke scripts' expected tool count in sync", () => {
+    const dockerHandshake = fs.readFileSync(
+      new URL("../../../scripts/docker-handshake.mjs", import.meta.url),
+      "utf8",
+    );
+    const releaseSmoke = fs.readFileSync(
+      new URL("../../../scripts/release-smoke.mjs", import.meta.url),
+      "utf8",
+    );
+    expect(dockerHandshake).toContain(`process.env.EXPECT_TOOLS ?? "${EXPECTED_TOOLS.length}"`);
+    expect(releaseSmoke).toContain(`EXPECT_TOOLS = ${EXPECTED_TOOLS.length};`);
   });
 });

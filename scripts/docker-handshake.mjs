@@ -11,11 +11,13 @@
 //   node scripts/docker-handshake.mjs -- node dist/index.js   # run host build
 //
 // Env:
-//   EXPECT_TOOLS  expected tool count (default 15)
+//   EXPECT_TOOLS  expected tool count (default 12; keep in sync with the
+//                 "registers exactly N tools" assertion in
+//                 src/test/unit/tool-surface.test.ts)
 
 import { spawn } from "node:child_process";
 
-const EXPECT_TOOLS = Number(process.env.EXPECT_TOOLS ?? "15");
+const EXPECT_TOOLS = Number(process.env.EXPECT_TOOLS ?? "12");
 
 // Parse a tiny arg set: everything after `--` is the literal command to run;
 // otherwise build a `<engine> run -i --rm <image>` invocation.

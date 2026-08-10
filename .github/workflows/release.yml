@@ -56,6 +56,11 @@ jobs:
       - name: Run tests
         run: npm test
 
+      - name: Pack, install, and run the built package
+        run: node scripts/release-smoke.mjs
+        env:
+          SKIP_BUILD: "1"
+
       - name: Verify package contents
         id: pack
         run: |
