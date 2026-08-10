@@ -46,6 +46,10 @@ function fail(msg) {
 function run(cmd, args, opts = {}) {
   log(`+ ${cmd} ${args.join(" ")}`);
   const res = spawnSync(cmd, args, { cwd: ROOT, stdio: "inherit", ...opts });
+  // res.error is set when the process itself couldn't be spawned (e.g. the
+  // binary isn't on PATH) -- status is null in that case, so checking status
+  // alone loses the actual cause and reports a useless "exited null".
+  if (res.error) fail(`${cmd} ${args.join(" ")} failed to spawn: ${res.error.message}`);
   if (res.status !== 0) fail(`${cmd} ${args.join(" ")} exited ${res.status}`);
   return res;
 }
@@ -80,10 +84,16 @@ function waitForHealth(port, child, timeoutMs, stderrRef) {
 
     const tick = async () => {
       try {
-        const res = await fetch(`http://127.0.0.1:${port}/health`);
+        // Per-attempt timeout: without it, an accepted-but-stalled connection
+        // hangs the awaited fetch indefinitely and the deadline below is
+        // never reached.
+        const res = await fetch(`http://127.0.0.1:${port}/health`, {
+          signal: AbortSignal.timeout(3000),
+        });
         if (res.ok) return settle(resolve);
       } catch {
-        // server not up yet
+        // server not up yet, or this attempt timed out -- either way, retry
+        // until the overall deadline.
       }
       if (Date.now() > deadline) {
         return settle(reject, new Error(`timed out waiting for /health\n--- stderr ---\n${stderrRef.value}`));
@@ -137,6 +147,10 @@ async function httpSmoke(bin) {
           clientInfo: { name: "release-smoke", version: "0.0.0" },
         },
       }),
+      // Bound the whole request/response, including reading the body below --
+      // a stalled or streaming response could otherwise hang res.text() and
+      // stall the job past this script's own error handling.
+      signal: AbortSignal.timeout(10000),
     });
     const text = await res.text();
     if (!res.ok || !text.includes('"serverInfo"')) {
@@ -163,6 +177,7 @@ async function main() {
       ["pack", "--json", "--pack-destination", workDir],
       { cwd: ROOT, encoding: "utf8" },
     );
+    if (packRes.error) fail(`npm pack failed to spawn: ${packRes.error.message}`);
     if (packRes.status !== 0) fail(`npm pack exited ${packRes.status}: ${packRes.stderr}`);
     const [{ filename: tarball }] = JSON.parse(packRes.stdout);
     log(`packed ${tarball}`);
@@ -197,6 +212,7 @@ async function main() {
       const res = spawnSync(bin, args, { encoding: "utf8" });
       const context = () =>
         `jurisd ${args.join(" ")}\n--- stdout ---\n${res.stdout}\n--- stderr ---\n${res.stderr}`;
+      if (res.error) fail(`jurisd ${args.join(" ")} failed to spawn: ${res.error.message}`);
       if (res.status !== mustExit) {
         fail(`exited ${res.status}, expected ${mustExit}\n${context()}`);
       }
