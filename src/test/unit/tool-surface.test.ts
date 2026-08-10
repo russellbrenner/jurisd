@@ -1,3 +1,4 @@
+import * as fs from "node:fs";
 import { describe, it, expect } from "vitest";
 import { createMcpServer } from "../../server.js";
 
@@ -39,5 +40,21 @@ describe("tool surface", () => {
 
   it("registers the expected 7 base + 5 local-module names, with no stale names", () => {
     expect(registeredToolNames()).toEqual(EXPECTED_TOOLS);
+  });
+
+  it("keeps the handshake smoke script's default tool count in sync, and lets release-smoke rely on it", () => {
+    const dockerHandshake = fs.readFileSync(
+      new URL("../../../scripts/docker-handshake.mjs", import.meta.url),
+      "utf8",
+    );
+    const releaseSmoke = fs.readFileSync(
+      new URL("../../../scripts/release-smoke.mjs", import.meta.url),
+      "utf8",
+    );
+    expect(dockerHandshake).toContain(`process.env.EXPECT_TOOLS ?? "${EXPECTED_TOOLS.length}"`);
+    // release-smoke.mjs should not override EXPECT_TOOLS when invoking
+    // docker-handshake.mjs, so its smoke run actually exercises (and would
+    // catch drift in) the default asserted above.
+    expect(releaseSmoke).not.toContain("EXPECT_TOOLS");
   });
 });
