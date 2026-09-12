@@ -245,16 +245,20 @@ Non-AustLII URLs are rejected.
 - `validate`: AustLII existence check only
 - `search`: text search only
 
+When AustLII is Cloudflare-blocked or unreachable, every mode degrades the same way `search_cases` does rather than failing: `auto` and `search` return the deterministic citation URL for a neutral-citation query (`discoverySource: "citation-url"`) or Exa discovery results (when `EXA_API_KEY` is set), with `sources` provenance; `validate` asks Exa to confirm the citation and otherwise returns `degraded: true` (CLI exit code 4).
+
 **Response (`validate`):**
 
 ```json
 {
   "valid": true,
+  "status": "found",
   "canonicalCitation": "[1992] HCA 23",
-  "austliiUrl": "https://www.austlii.edu.au/...",
-  "message": "Citation is valid"
+  "austliiUrl": "https://www.austlii.edu.au/..."
 }
 ```
+
+`status` is one of `found`, `not_found` (AustLII answered 404), `blocked` (Cloudflare challenge: unverified, not absent), `unreachable` (network failure) or `invalid` (not a neutral citation). A `blocked` or `unreachable` check confirmed via Exa returns `valid: true`, `verifiedBy: "exa"` and `sources: { "austlii": "blocked", "exa": "ok" }`.
 
 ---
 

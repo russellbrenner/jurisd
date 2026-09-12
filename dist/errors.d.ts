@@ -22,10 +22,19 @@ export declare class AustLiiError extends Error {
  * because it was disabled (false). The message is deliberately actionable and
  * never contains cookies, `cf_clearance`, or any other secret.
  */
+export interface CloudflareBlockedErrorOptions {
+    /**
+     * Whether an Exa API key is configured. Defaults to the live configuration;
+     * pass explicitly in tests or when the caller already knows. Controls
+     * whether the message tells the user to *configure* EXA_API_KEY or that the
+     * configured Exa fallback did not recover this request.
+     */
+    exaConfigured?: boolean;
+}
 export declare class CloudflareBlockedError extends AustLiiError {
     readonly resourceUrl: string;
     readonly fallbackTried: boolean;
-    constructor(resourceUrl: string, fallbackTried: boolean);
+    constructor(resourceUrl: string, fallbackTried: boolean, options?: CloudflareBlockedErrorOptions);
     /**
      * Builds the actionable, secret-free guidance message. Kept static so it can
      * run before `super()` completes.

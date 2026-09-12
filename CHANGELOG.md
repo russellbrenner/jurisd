@@ -5,6 +5,22 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Fixed
+
+- `resolve_citation` now takes the same Cloudflare fallback path as
+  `search_cases` (#192). `mode=auto` and `mode=search` return the direct
+  citation URL or Exa discovery results with `sources` provenance instead of
+  throwing when AustLII search is blocked. `mode=validate` classifies the
+  AustLII response (`status`: `found`, `not_found`, `blocked`, `unreachable`,
+  `invalid`) so a Cloudflare challenge is reported as unverified rather than
+  as "Citation not found on AustLII", and asks Exa to confirm the citation
+  when a key is configured.
+- Cloudflare-block messages no longer tell a user who has already set
+  `EXA_API_KEY` to configure it; they say what the configured fallback
+  reported instead.
+
 ## [0.5.0] - 2026-06-27
 
 ### Removed

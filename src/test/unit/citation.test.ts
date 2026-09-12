@@ -144,6 +144,7 @@ describe("validateCitation", () => {
     vi.spyOn(axios, "head").mockResolvedValueOnce({ status: 200 });
     const result = await validateCitation("[1992] HCA 23");
     expect(result.valid).toBe(true);
+    expect(result.status).toBe("found");
     expect(result.austliiUrl).toContain("HCA");
   });
 
@@ -162,6 +163,62 @@ describe("validateCitation", () => {
     vi.spyOn(axios, "head").mockRejectedValueOnce({ response: { status: 404 } });
     const result = await validateCitation("[9999] HCA 999");
     expect(result.valid).toBe(false);
+    expect(result.status).toBe("not_found");
+    expect(result.message).toContain("not found");
+  });
+
+  it("classifies a resolved 404 (validateStatus accepts every status) as not_found", async () => {
+    vi.spyOn(axios, "head").mockResolvedValueOnce({ status: 404, headers: {} });
+    const result = await validateCitation("[9999] HCA 999");
+    expect(result).toMatchObject({ valid: false, status: "not_found" });
+  });
+
+  it("accepts every HTTP status so Cloudflare responses are classified, not thrown", async () => {
+    const head = vi.spyOn(axios, "head").mockResolvedValueOnce({ status: 200, headers: {} });
+    await validateCitation("[1992] HCA 23");
+    const options = head.mock.calls[0]?.[1] as { validateStatus?: (s: number) => boolean };
+    expect(options.validateStatus?.(403)).toBe(true);
+    expect(options.validateStatus?.(503)).toBe(true);
+  });
+
+  it("reports a cf-mitigated challenge as blocked, not as not found", async () => {
+    vi.spyOn(axios, "head").mockResolvedValueOnce({
+      status: 403,
+      headers: { "cf-mitigated": "challenge" },
+    });
+    const result = await validateCitation("[1992] HCA 23");
+    expect(result).toMatchObject({
+      valid: false,
+      status: "blocked",
+      canonicalCitation: "[1992] HCA 23",
+    });
+    expect(result.austliiUrl).toContain("HCA/1992/23");
+    expect(result.message).toMatch(/Cloudflare/);
+    expect(result.message).not.toMatch(/not found/i);
+  });
+
+  it("reports Cloudflare's bare 403/503 bot-block codes as blocked", async () => {
+    vi.spyOn(axios, "head").mockResolvedValueOnce({ status: 503, headers: {} });
+    expect((await validateCitation("[1992] HCA 23")).status).toBe("blocked");
+    vi.spyOn(axios, "head").mockRejectedValueOnce({ response: { status: 403, headers: {} } });
+    expect((await validateCitation("[1992] HCA 23")).status).toBe("blocked");
+  });
+
+  it("reports a transport failure as unreachable, not as not found", async () => {
+    vi.spyOn(axios, "head").mockRejectedValueOnce(new Error("ECONNRESET"));
+    const result = await validateCitation("[1992] HCA 23");
+    expect(result).toMatchObject({ valid: false, status: "unreachable" });
+    expect(result.message).not.toMatch(/not found/i);
+  });
+
+  it("reports an unexpected status (500) as unreachable", async () => {
+    vi.spyOn(axios, "head").mockResolvedValueOnce({ status: 500, headers: {} });
+    expect((await validateCitation("[1992] HCA 23")).status).toBe("unreachable");
+  });
+
+  it("marks syntactically invalid input as status=invalid", async () => {
+    expect((await validateCitation("[2024] UNKNOWN 1")).status).toBe("invalid");
+    expect((await validateCitation("not a citation")).status).toBe("invalid");
   });
 
   describe.skip("integration - live network", () => {
