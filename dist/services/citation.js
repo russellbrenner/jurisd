@@ -7,6 +7,7 @@
  */
 import axios from "axios";
 import { NEUTRAL_CITATION_PATTERN, REPORTED_CITATION_PATTERNS, COURT_TO_AUSTLII_PATH, REPORTERS, } from "../constants.js";
+import { isCloudflareBotBlock, isCloudflareChallengeHeader } from "./cloudflare.js";
 /** Convert a structured Pinpoint to the AGLC4 string fragment (without leading "at"). */
 export function formatPinpointRef(p) {
     switch (p.type) {
@@ -144,31 +145,104 @@ export function generatePinpoint(paragraphs, query) {
         pageString: para.pageNumber !== undefined ? `at ${para.pageNumber}` : undefined,
     };
 }
+/** Normalise axios-style header values (string | string[] | undefined) to strings. */
+function headerRecord(headers) {
+    if (typeof headers !== "object" || headers === null)
+        return undefined;
+    const out = {};
+    for (const [key, value] of Object.entries(headers)) {
+        if (typeof value === "string")
+            out[key] = value;
+        else if (Array.isArray(value))
+            out[key] = value.map(String).join(", ");
+    }
+    return out;
+}
+/**
+ * Classify an AustLII HEAD response. A Cloudflare challenge is recognised by
+ * the documented `cf-mitigated` header or, since a HEAD carries no body to
+ * fingerprint, by CF's 403/503 bot-block codes; both are "blocked", never
+ * "not found".
+ */
+function classifyAustliiHead(status, headers) {
+    if (isCloudflareChallengeHeader(headers) || isCloudflareBotBlock(status))
+        return "blocked";
+    if (status >= 200 && status < 300)
+        return "found";
+    if (status === 404)
+        return "not_found";
+    return "unreachable";
+}
+/**
+ * Check whether a neutral citation resolves to a document on AustLII.
+ *
+ * The result's {@link CitationValidationResult.status} says *why* `valid` is
+ * false: only `not_found` means AustLII confirmed the citation is absent.
+ * `blocked` (Cloudflare challenge) and `unreachable` mean the check could not
+ * be completed, so callers with a fallback discovery source (Exa, the direct
+ * citation URL) should consult it rather than report the citation as missing.
+ */
 export async function validateCitation(citation) {
     const normalised = normaliseCitation(citation);
     const match = normalised.match(NEUTRAL_CITATION_PATTERN);
     if (!match) {
         return {
             valid: false,
+            status: "invalid",
             message: "Not a recognised neutral citation format",
         };
     }
     const [, year, court, num] = match;
     const path = COURT_TO_AUSTLII_PATH[court];
     if (!path) {
-        return { valid: false, message: `Unknown court code: ${court}` };
+        return { valid: false, status: "invalid", message: `Unknown court code: ${court}` };
     }
     const url = `https://www.austlii.edu.au/cgi-bin/viewdoc/${path}/${year}/${num}.html`;
+    let status;
     try {
-        await axios.head(url, { timeout: 10000 });
-        return { valid: true, canonicalCitation: normalised, austliiUrl: url };
+        // validateStatus: accept every status so a 403/404/503 is classified here
+        // rather than surfacing as a thrown error that loses the headers.
+        const response = await axios.head(url, { timeout: 10000, validateStatus: () => true });
+        status = classifyAustliiHead(response.status, headerRecord(response.headers));
     }
-    catch {
-        return {
-            valid: false,
-            message: "Citation not found on AustLII",
-            austliiUrl: url,
-        };
+    catch (error) {
+        // An HTTP error response that still reached us (e.g. a mocked or
+        // interceptor-raised rejection carrying `response`) is classified by its
+        // status; anything else (DNS, timeout, reset) is a transport failure.
+        const response = error.response;
+        status =
+            typeof response?.status === "number"
+                ? classifyAustliiHead(response.status, headerRecord(response.headers))
+                : "unreachable";
+    }
+    switch (status) {
+        case "found":
+            return { valid: true, status, canonicalCitation: normalised, austliiUrl: url };
+        case "not_found":
+            return {
+                valid: false,
+                status,
+                canonicalCitation: normalised,
+                message: "Citation not found on AustLII",
+                austliiUrl: url,
+            };
+        case "blocked":
+            return {
+                valid: false,
+                status,
+                canonicalCitation: normalised,
+                message: "AustLII is behind a Cloudflare challenge, so the citation could not be verified " +
+                    "(it was not proven absent). The canonical URL is deterministic and may still resolve.",
+                austliiUrl: url,
+            };
+        case "unreachable":
+            return {
+                valid: false,
+                status,
+                canonicalCitation: normalised,
+                message: "AustLII could not be reached, so the citation could not be verified.",
+                austliiUrl: url,
+            };
     }
 }
 //# sourceMappingURL=citation.js.map

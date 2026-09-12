@@ -95,16 +95,43 @@ function directAustliiResultFromNeutralQuery(query, options) {
         type: "case",
     };
 }
-function austliiSearchWarning(error) {
+/**
+ * Build the degraded-search warning for a Cloudflare-blocked AustLII search.
+ * The remedy named depends on what the Exa fallback actually reported, so a
+ * user who already configured EXA_API_KEY is not told to configure it again.
+ */
+function austliiSearchWarning(error, exaStatus = "not_configured") {
     if (!(error instanceof CloudflareBlockedError))
         return undefined;
+    const remedy = exaStatus === "not_configured"
+        ? "Configure EXA_API_KEY (Exa search discovery) to recover results; "
+        : exaStatus === "failed"
+            ? "The configured Exa search-discovery fallback failed (network error or " +
+                "non-2xx response); retry later or check EXA_API_KEY; "
+            : "Exa search discovery is configured but returned no primary-source results for " +
+                "this query; ";
     return {
         code: "austlii_cloudflare_blocked",
         source: "austlii",
-        message: "AustLII search is blocked by a Cloudflare challenge. Configure EXA_API_KEY " +
-            "(Exa search discovery) to recover results; " +
+        message: `AustLII search is blocked by a Cloudflare challenge. ${remedy}` +
             "direct document fetch still works when you already have a URL.",
     };
+}
+/** Whitespace- and case-insensitive neutral citation equality. */
+function sameNeutralCitation(a, b) {
+    if (!a || !b)
+        return false;
+    return normaliseCitation(a).toLowerCase() === normaliseCitation(b).toLowerCase();
+}
+/**
+ * When AustLII is Cloudflare-blocked, ask Exa whether it has indexed the
+ * document for `neutralCitation`. A hit whose canonical URL or extracted
+ * neutral citation matches counts as confirmation that the citation exists.
+ */
+async function confirmCitationViaExa(neutralCitation, austliiUrl) {
+    const outcome = await searchAustliiViaExaWithStatus(neutralCitation, { type: "case", sortBy: "relevance" }, 5);
+    const confirmed = outcome.results.some((result) => result.url === austliiUrl || sameNeutralCitation(result.neutralCitation, neutralCitation));
+    return { confirmed, status: outcome.status };
 }
 /**
  * Build a fresh McpServer with all tools registered.
@@ -154,8 +181,7 @@ export function createMcpServer() {
             return formatSearchResults(results, format ?? "json");
         }
         catch (error) {
-            const warning = austliiSearchWarning(error);
-            if (!warning)
+            if (!austliiSearchWarning(error))
                 throw error;
             const exaOutcome = await searchAustliiViaExaWithStatus(query, options, limit ?? config.defaults.searchLimit);
             if (exaOutcome.results.length > 0) {
@@ -163,8 +189,9 @@ export function createMcpServer() {
                     sources: { austlii: "blocked", exa: exaOutcome.status },
                 });
             }
+            const warning = austliiSearchWarning(error, exaOutcome.status);
             return formatSearchResults([], format ?? "json", {
-                warnings: [warning],
+                warnings: warning ? [warning] : [],
                 sources: { austlii: "blocked", exa: exaOutcome.status },
             });
         }
@@ -194,18 +221,17 @@ export function createMcpServer() {
             method,
             offset,
         };
-        const warnings = [];
         const sources = {};
         let austliiResults = [];
+        let austliiError;
         try {
             austliiResults = await searchAustLii(query, caseOptions);
             sources.austlii = "ok";
         }
         catch (error) {
-            const warning = austliiSearchWarning(error);
-            if (!warning)
+            if (!austliiSearchWarning(error))
                 throw error;
-            warnings.push(warning);
+            austliiError = error;
             sources.austlii = "blocked";
         }
         let merged = mergeCaseSearchResults(austliiResults, limit);
@@ -229,9 +255,12 @@ export function createMcpServer() {
         // search. When a fallback (direct citation or Exa) supplied results,
         // telling the user to "configure X to recover" is misleading — they
         // already have a working path. Keep `sources` as quiet provenance.
-        const effectiveWarnings = merged.length > 0
-            ? warnings.filter((warning) => warning.code !== "austlii_cloudflare_blocked")
-            : warnings;
+        const effectiveWarnings = [];
+        if (merged.length === 0 && austliiError !== undefined) {
+            const warning = austliiSearchWarning(austliiError, sources.exa);
+            if (warning)
+                effectiveWarnings.push(warning);
+        }
         const includeSourceStatus = effectiveWarnings.length > 0 || Object.values(sources).some((status) => status !== "ok");
         return formatSearchResults(merged, format ?? "json", includeSourceStatus ? { warnings: effectiveWarnings, sources } : undefined);
     });
@@ -443,16 +472,41 @@ export function createMcpServer() {
     const resolveCitationParser = z.object(resolveCitationShape);
     server.registerTool("resolve_citation", {
         title: "Resolve Citation",
-        description: "Resolve a citation to its authoritative source. mode=auto (default) validates a detected neutral citation against AustLII and returns the direct URL, falling back to a case name search otherwise. mode=validate checks that a neutral citation exists on AustLII and returns the canonical URL. mode=search performs a text search only.",
+        description: "Resolve a citation to its authoritative source. mode=auto (default) validates a detected neutral citation against AustLII and returns the direct URL, falling back to a case name search otherwise. mode=validate checks that a neutral citation exists on AustLII and returns the canonical URL; `status` distinguishes not_found from blocked/unreachable. When AustLII is Cloudflare-blocked, all modes fall back to the direct citation URL and Exa discovery (EXA_API_KEY) and report `sources`, the same way search_cases does. mode=search performs a text search only.",
         inputSchema: resolveCitationShape,
     }, async (rawInput) => {
         const { citation, mode, format } = resolveCitationParser.parse(rawInput);
         if (mode === "validate") {
             const result = await validateCitation(citation);
-            return {
-                content: [{ type: "text", text: JSON.stringify(result, null, 2) }],
+            const validateResult = (data) => ({
+                content: [{ type: "text", text: JSON.stringify(data, null, 2) }],
+                structuredContent: { format: "json", data },
+            });
+            const unverified = result.status === "blocked" || result.status === "unreachable";
+            if (!unverified || !result.canonicalCitation || !result.austliiUrl) {
+                return validateResult({ ...result });
+            }
+            // AustLII is Cloudflare-blocked or unreachable: the HEAD could not
+            // tell "absent" from "challenged". Ask Exa (when configured) whether
+            // it has the document before reporting anything.
+            const exa = await confirmCitationViaExa(result.canonicalCitation, result.austliiUrl);
+            const sources = {
+                austlii: result.status === "blocked" ? "blocked" : "failed",
+                exa: exa.status,
             };
+            if (exa.confirmed) {
+                return validateResult({
+                    valid: true,
+                    status: "found",
+                    canonicalCitation: result.canonicalCitation,
+                    austliiUrl: result.austliiUrl,
+                    verifiedBy: "exa",
+                    sources,
+                });
+            }
+            return validateResult({ ...result, sources, degraded: true });
         }
+        const searchOptions = { type: "case", sortBy: "relevance", limit: 5 };
         if (mode === "auto") {
             const parsed = parseCitation(citation);
             if (parsed?.neutralCitation) {
@@ -467,15 +521,50 @@ export function createMcpServer() {
                     };
                     return formatSearchResults([result], format ?? "json");
                 }
+                // AustLII blocked or unreachable, but the canonical URL for a neutral
+                // citation is deterministic: return it as a direct-citation result
+                // (same path search_cases takes) with provenance, rather than
+                // failing over to a text search that will hit the same challenge.
+                if (validated.status === "blocked" || validated.status === "unreachable") {
+                    const direct = directAustliiResultFromNeutralQuery(parsed.neutralCitation, searchOptions);
+                    if (direct) {
+                        return formatSearchResults([{ ...direct, title: citation }], format ?? "json", {
+                            sources: {
+                                austlii: validated.status === "blocked" ? "blocked" : "failed",
+                                austlii_direct: "ok",
+                            },
+                        });
+                    }
+                }
             }
         }
         // mode === "search", or auto fallback to text search
-        const results = await searchAustLii(citation, {
-            type: "case",
-            sortBy: "relevance",
-            limit: 5,
-        });
-        return formatSearchResults(results, format ?? "json");
+        try {
+            const results = await searchAustLii(citation, searchOptions);
+            return formatSearchResults(results, format ?? "json");
+        }
+        catch (error) {
+            if (!austliiSearchWarning(error))
+                throw error;
+            // Same cost-ordered fallback as search_cases: a neutral-citation query
+            // resolves to its direct URL for free; otherwise Exa discovery.
+            const direct = directAustliiResultFromNeutralQuery(citation, searchOptions);
+            if (direct) {
+                return formatSearchResults([direct], format ?? "json", {
+                    sources: { austlii: "blocked", austlii_direct: "ok" },
+                });
+            }
+            const exaOutcome = await searchAustliiViaExaWithStatus(citation, searchOptions, 5);
+            const sources = { austlii: "blocked", exa: exaOutcome.status };
+            if (exaOutcome.results.length > 0) {
+                return formatSearchResults(exaOutcome.results, format ?? "json", { sources });
+            }
+            const warning = austliiSearchWarning(error, exaOutcome.status);
+            return formatSearchResults([], format ?? "json", {
+                warnings: warning ? [warning] : [],
+                sources,
+            });
+        }
     });
     // ── cite ──────────────────────────────────────────────────────────────────
     const citeShape = {

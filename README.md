@@ -189,7 +189,7 @@ commands exit 4 for degraded source coverage.
 | Tool               | What it does                                                                                                         |
 | ------------------ | -------------------------------------------------------------------------------------------------------------------- |
 | `format_citation`  | Format an AGLC4 citation. `mode`: `full` (default), `short`, `ibid`, `subsequent`, `pinpoint`.                       |
-| `resolve_citation` | Resolve a citation to its source. `mode`: `auto` (default), `validate` (AustLII existence check), `search`.          |
+| `resolve_citation` | Resolve a citation to its source. `mode`: `auto` (default), `validate` (AustLII existence check), `search`. Falls back to the direct citation URL and Exa when AustLII is Cloudflare-blocked; `validate` reports `status` (`found`, `not_found`, `blocked`, `unreachable`, `invalid`) so a challenge is never mistaken for "not found". |
 | `cite`             | Write to the local citation cache. `action`: `add` (default) or `refresh_source` (conditional-HEAD freshness check). |
 | `bibliography`     | Read the local citation cache (no network). `op`: `get`, `list` (default), `export` (`.bib`), `cited_by`.            |
 

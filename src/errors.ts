@@ -6,6 +6,8 @@
  * Provides structured error types for different failure modes.
  */
 
+import { config } from "./config.js";
+
 /**
  * Error thrown when an AustLII search or API call fails.
  */
@@ -29,12 +31,30 @@ export class AustLiiError extends Error {
  * because it was disabled (false). The message is deliberately actionable and
  * never contains cookies, `cf_clearance`, or any other secret.
  */
+export interface CloudflareBlockedErrorOptions {
+  /**
+   * Whether an Exa API key is configured. Defaults to the live configuration;
+   * pass explicitly in tests or when the caller already knows. Controls
+   * whether the message tells the user to *configure* EXA_API_KEY or that the
+   * configured Exa fallback did not recover this request.
+   */
+  exaConfigured?: boolean;
+}
+
 export class CloudflareBlockedError extends AustLiiError {
   constructor(
     public readonly resourceUrl: string,
     public readonly fallbackTried: boolean,
+    options: CloudflareBlockedErrorOptions = {},
   ) {
-    super(CloudflareBlockedError.buildMessage(resourceUrl, fallbackTried), 403);
+    super(
+      CloudflareBlockedError.buildMessage(
+        resourceUrl,
+        fallbackTried,
+        options.exaConfigured ?? Boolean(config.exa?.apiKey),
+      ),
+      403,
+    );
     this.name = "CloudflareBlockedError";
   }
 
@@ -42,15 +62,22 @@ export class CloudflareBlockedError extends AustLiiError {
    * Builds the actionable, secret-free guidance message. Kept static so it can
    * run before `super()` completes.
    */
-  private static buildMessage(resourceUrl: string, fallbackTried: boolean): string {
+  private static buildMessage(
+    resourceUrl: string,
+    fallbackTried: boolean,
+    exaConfigured: boolean,
+  ): string {
     const fallbackClause = fallbackTried
       ? ", and the document was not in the Open Australian Legal Corpus fallback"
       : "";
+    const exaClause = exaConfigured
+      ? "EXA_API_KEY is configured, but Exa search discovery did not recover this request " +
+        "(it covers search, not direct document fetch, and its index is not exhaustive). "
+      : "Configure EXA_API_KEY (Exa search discovery returns canonical austlii.edu.au URLs). ";
     return (
       `AustLII is behind a Cloudflare challenge and cannot be accessed directly ` +
       `(${resourceUrl})${fallbackClause}. Direct AustLII search and fetch are ` +
-      "unavailable without a configured fallback source. Configure " +
-      "EXA_API_KEY (Exa search discovery returns canonical austlii.edu.au URLs). " +
+      `unavailable without a working fallback source. ${exaClause}` +
       "Advanced: AUSTLII_CF_CLEARANCE from a solved browser session."
     );
   }

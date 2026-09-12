@@ -56,6 +56,16 @@ describe("Custom error classes", () => {
       expect(err.message).toContain(url);
     });
 
+    it("tells the user to configure EXA_API_KEY only when it is not configured", () => {
+      const unconfigured = new CloudflareBlockedError(url, false, { exaConfigured: false });
+      expect(unconfigured.message).toContain("Configure EXA_API_KEY");
+
+      const configured = new CloudflareBlockedError(url, false, { exaConfigured: true });
+      expect(configured.message).not.toContain("Configure EXA_API_KEY");
+      expect(configured.message).toContain("EXA_API_KEY is configured");
+      expect(configured.message).toContain("AUSTLII_CF_CLEARANCE");
+    });
+
     it("message mentions the corpus fallback only when fallbackTried is true", () => {
       const tried = new CloudflareBlockedError(url, true);
       const notTried = new CloudflareBlockedError(url, false);

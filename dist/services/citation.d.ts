@@ -18,8 +18,24 @@ export interface AGLC4FormatInput {
     /** Free-form pinpoint string, e.g. "[20]", "401", "[64] to [66]". */
     pinpoint?: string;
 }
+/**
+ * How a {@link validateCitation} verdict was reached.
+ *
+ * - `found`: AustLII answered 2xx for the canonical URL.
+ * - `not_found`: AustLII answered 404, so the citation is genuinely absent.
+ * - `blocked`: AustLII served a Cloudflare challenge (documented `cf-mitigated`
+ *   header, or a 403/503 bot-block status). `valid` is false but the citation
+ *   was **not** proven absent; callers should try a fallback source.
+ * - `unreachable`: a network error, timeout, or other unexpected HTTP status.
+ *   Again unverified rather than absent.
+ * - `invalid`: not a neutral citation, or an unknown court code. No request
+ *   was made.
+ */
+export type CitationValidationStatus = "found" | "not_found" | "blocked" | "unreachable" | "invalid";
 export interface CitationValidationResult {
     valid: boolean;
+    /** Distinguishes a definitive "not found" from "could not check". */
+    status: CitationValidationStatus;
     canonicalCitation?: string;
     austliiUrl?: string;
     message?: string;
@@ -87,5 +103,14 @@ export interface PinpointQuery {
  * Can search by paragraph number or by a phrase appearing in the text.
  */
 export declare function generatePinpoint(paragraphs: ParagraphBlock[], query: PinpointQuery): PinpointResult | null;
+/**
+ * Check whether a neutral citation resolves to a document on AustLII.
+ *
+ * The result's {@link CitationValidationResult.status} says *why* `valid` is
+ * false: only `not_found` means AustLII confirmed the citation is absent.
+ * `blocked` (Cloudflare challenge) and `unreachable` mean the check could not
+ * be completed, so callers with a fallback discovery source (Exa, the direct
+ * citation URL) should consult it rather than report the citation as missing.
+ */
 export declare function validateCitation(citation: string): Promise<CitationValidationResult>;
 //# sourceMappingURL=citation.d.ts.map
