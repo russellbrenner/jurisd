@@ -61,7 +61,12 @@ describe("package installability metadata", () => {
   it("keeps native recall stacks optional while installing the AustLII transport by default", () => {
     expect(packageJson.dependencies).not.toHaveProperty("@duckdb/node-api");
     expect(packageJson.dependencies).not.toHaveProperty("@huggingface/transformers");
-    expect(packageJson.dependencies).toHaveProperty("impit", "0.14.3");
+    // impit ships native binaries, so it is pinned to an exact version rather
+    // than a caret range. Assert the *shape* of the pin (and that the lockfile
+    // root agrees) instead of a literal version, so a dependabot bump does not
+    // turn this test red the way the 0.14.3 -> 0.14.4 bump did.
+    const impitVersion = packageJson.dependencies?.impit;
+    expect(impitVersion).toMatch(/^\d+\.\d+\.\d+$/);
     expect(packageJson.optionalDependencies).toHaveProperty("@duckdb/node-api");
     expect(packageJson.optionalDependencies).not.toHaveProperty("@huggingface/transformers");
     expect(packageJson.optionalDependencies).not.toHaveProperty("impit");
@@ -69,7 +74,7 @@ describe("package installability metadata", () => {
     const rootLock = packageLock.packages[""];
     expect(rootLock.dependencies).not.toHaveProperty("@duckdb/node-api");
     expect(rootLock.dependencies).not.toHaveProperty("@huggingface/transformers");
-    expect(rootLock.dependencies).toHaveProperty("impit", "0.14.3");
+    expect(rootLock.dependencies).toHaveProperty("impit", impitVersion);
     expect(rootLock.optionalDependencies).toHaveProperty("@duckdb/node-api");
     expect(rootLock.optionalDependencies).not.toHaveProperty("@huggingface/transformers");
     expect(rootLock.optionalDependencies).not.toHaveProperty("impit");
@@ -88,6 +93,29 @@ describe("package installability metadata", () => {
       'npm run clean && npm run build && git diff --exit-code -- dist && test -z "$(git status --porcelain -- dist)"',
     );
     expect(mainWorkflow).toContain("npm run check:dist");
+  });
+
+  it("installs and runs the packed tarball before publishing", () => {
+    // PR #184 (tracked in #185) added scripts/release-smoke.mjs so a packaging
+    // regression is caught by CI and by the release gate rather than by a user
+    // after publish. Guard the wiring so neither workflow can silently drop it.
+    const verifyJob = releaseWorkflowJob("verify");
+    expect(mainWorkflow).toContain("release-smoke:");
+    expect(mainWorkflow).toContain("run: node scripts/release-smoke.mjs");
+    expect(verifyJob).toContain("run: node scripts/release-smoke.mjs");
+    // The release gate runs the smoke test after check:dist has already
+    // rebuilt dist/ from source, so it reuses that build; main.yml's job does
+    // its own build.
+    expect(verifyJob).toMatch(/release-smoke\.mjs\n\s+env:\n\s+SKIP_BUILD: "1"/);
+    expect(verifyJob.indexOf("npm run check:dist")).toBeLessThan(
+      verifyJob.indexOf("scripts/release-smoke.mjs"),
+    );
+    expect(verifyJob.indexOf("scripts/release-smoke.mjs")).toBeLessThan(
+      verifyJob.indexOf("npm pack --json"),
+    );
+    expect(fs.existsSync(new URL("../../../scripts/release-smoke.mjs", import.meta.url))).toBe(
+      true,
+    );
   });
 
   it("publishes release tags to npm via a scoped NPM_TOKEN", () => {
