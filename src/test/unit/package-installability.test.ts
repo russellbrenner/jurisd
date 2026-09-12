@@ -61,7 +61,12 @@ describe("package installability metadata", () => {
   it("keeps native recall stacks optional while installing the AustLII transport by default", () => {
     expect(packageJson.dependencies).not.toHaveProperty("@duckdb/node-api");
     expect(packageJson.dependencies).not.toHaveProperty("@huggingface/transformers");
-    expect(packageJson.dependencies).toHaveProperty("impit", "0.14.3");
+    // impit ships native binaries, so it is pinned to an exact version rather
+    // than a caret range. Assert the *shape* of the pin (and that the lockfile
+    // root agrees) instead of a literal version, so a dependabot bump does not
+    // turn this test red the way the 0.14.3 -> 0.14.4 bump did.
+    const impitVersion = packageJson.dependencies?.impit;
+    expect(impitVersion).toMatch(/^\d+\.\d+\.\d+$/);
     expect(packageJson.optionalDependencies).toHaveProperty("@duckdb/node-api");
     expect(packageJson.optionalDependencies).not.toHaveProperty("@huggingface/transformers");
     expect(packageJson.optionalDependencies).not.toHaveProperty("impit");
@@ -69,7 +74,7 @@ describe("package installability metadata", () => {
     const rootLock = packageLock.packages[""];
     expect(rootLock.dependencies).not.toHaveProperty("@duckdb/node-api");
     expect(rootLock.dependencies).not.toHaveProperty("@huggingface/transformers");
-    expect(rootLock.dependencies).toHaveProperty("impit", "0.14.3");
+    expect(rootLock.dependencies).toHaveProperty("impit", impitVersion);
     expect(rootLock.optionalDependencies).toHaveProperty("@duckdb/node-api");
     expect(rootLock.optionalDependencies).not.toHaveProperty("@huggingface/transformers");
     expect(rootLock.optionalDependencies).not.toHaveProperty("impit");
