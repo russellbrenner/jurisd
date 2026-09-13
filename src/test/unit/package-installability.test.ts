@@ -95,6 +95,29 @@ describe("package installability metadata", () => {
     expect(mainWorkflow).toContain("npm run check:dist");
   });
 
+  it("installs and runs the packed tarball before publishing", () => {
+    // PR #184 (tracked in #185) added scripts/release-smoke.mjs so a packaging
+    // regression is caught by CI and by the release gate rather than by a user
+    // after publish. Guard the wiring so neither workflow can silently drop it.
+    const verifyJob = releaseWorkflowJob("verify");
+    expect(mainWorkflow).toContain("release-smoke:");
+    expect(mainWorkflow).toContain("run: node scripts/release-smoke.mjs");
+    expect(verifyJob).toContain("run: node scripts/release-smoke.mjs");
+    // The release gate runs the smoke test after check:dist has already
+    // rebuilt dist/ from source, so it reuses that build; main.yml's job does
+    // its own build.
+    expect(verifyJob).toMatch(/release-smoke\.mjs\n\s+env:\n\s+SKIP_BUILD: "1"/);
+    expect(verifyJob.indexOf("npm run check:dist")).toBeLessThan(
+      verifyJob.indexOf("scripts/release-smoke.mjs"),
+    );
+    expect(verifyJob.indexOf("scripts/release-smoke.mjs")).toBeLessThan(
+      verifyJob.indexOf("npm pack --json"),
+    );
+    expect(fs.existsSync(new URL("../../../scripts/release-smoke.mjs", import.meta.url))).toBe(
+      true,
+    );
+  });
+
   it("publishes release tags to npm via a scoped NPM_TOKEN", () => {
     const verifyJob = releaseWorkflowJob("verify");
     const publishJob = releaseWorkflowJob("publish");
