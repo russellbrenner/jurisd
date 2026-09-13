@@ -14,6 +14,7 @@ import type { SearchResult } from "../../services/austlii.js";
 const toolMocks = vi.hoisted(() => ({
   searchAustLii: vi.fn(),
   fetchDocumentText: vi.fn(),
+  searchAustliiViaExaWithStatus: vi.fn(),
 }));
 
 vi.mock("../../services/austlii.js", async (importOriginal) => {
@@ -24,6 +25,13 @@ vi.mock("../../services/austlii.js", async (importOriginal) => {
 vi.mock("../../services/fetcher.js", async (importOriginal) => {
   const actual = await importOriginal<typeof import("../../services/fetcher.js")>();
   return { ...actual, fetchDocumentText: toolMocks.fetchDocumentText };
+});
+
+// Mock Exa explicitly so the source-degraded exit-code assertion does not
+// depend on whether EXA_API_KEY is set in the developer's environment.
+vi.mock("../../services/exa.js", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../../services/exa.js")>();
+  return { ...actual, searchAustliiViaExaWithStatus: toolMocks.searchAustliiViaExaWithStatus };
 });
 
 /**
@@ -194,6 +202,11 @@ describe("runCli tool loopback (offline tools)", () => {
     process.exitCode = 0;
     toolMocks.searchAustLii.mockReset();
     toolMocks.fetchDocumentText.mockReset();
+    toolMocks.searchAustliiViaExaWithStatus.mockReset();
+    toolMocks.searchAustliiViaExaWithStatus.mockResolvedValue({
+      results: [],
+      status: "not_configured",
+    });
     scratch = fs.mkdtempSync(path.join(os.tmpdir(), "jurisd-cli-"));
     setModulesRootForTest(scratch, true);
     written = "";

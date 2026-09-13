@@ -9,10 +9,19 @@ import type { SearchResult } from "../../services/austlii.js";
 
 const mocks = vi.hoisted(() => ({
   searchAustLii: vi.fn(),
+  searchAustliiViaExaWithStatus: vi.fn(),
 }));
 
 vi.mock("../../services/austlii.js", () => ({
   searchAustLii: mocks.searchAustLii,
+}));
+
+// Mock Exa explicitly so the degraded-response assertions below do not depend
+// on whether EXA_API_KEY happens to be set in the developer's environment. With
+// a real key the un-mocked module would call api.exa.ai and report "ok" or
+// "failed" instead of "not_configured".
+vi.mock("../../services/exa.js", () => ({
+  searchAustliiViaExaWithStatus: mocks.searchAustliiViaExaWithStatus,
 }));
 
 async function connectedClient() {
@@ -47,6 +56,10 @@ async function callToolErrorText(
 describe("AustLII search degradation", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mocks.searchAustliiViaExaWithStatus.mockResolvedValue({
+      results: [],
+      status: "not_configured",
+    });
   });
 
   it("search_cases returns AustLII results when the search succeeds", async () => {
