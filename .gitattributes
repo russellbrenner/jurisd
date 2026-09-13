@@ -1,0 +1,18 @@
+# Normalise line endings so a Windows checkout with core.autocrlf=true does not
+# diverge from freshly-rendered or regex-matched content. Generated command
+# artefacts (docs/generated/**) are compared byte-for-byte against the renderer
+# in tests, and workflow YAML is regex-matched on "\n" in
+# package-installability.test.ts; both break on CRLF.
+* text=auto eol=lf
+
+# Binary fixtures must never be renormalised.
+*.parquet binary
+*.png binary
+*.jpg binary
+*.gif binary
+*.ico binary
+*.woff binary
+*.woff2 binary
+*.tgz binary
+*.gz binary
+*.zip binary

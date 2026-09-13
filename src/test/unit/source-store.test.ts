@@ -19,7 +19,9 @@ import { fetchDocumentText } from "../../services/fetcher.js";
 import { assertFetchableUrl } from "../../utils/url-guard.js";
 import { checkSourceFreshness, storeSource } from "../../services/source-store.js";
 
-const SOURCES_DIR = "/test/project/sources";
+// Resolved through path.resolve so the expected path carries a drive letter on
+// Windows, matching what buildSourceFilePath produces from the same input.
+const SOURCES_DIR = path.resolve("/test/project/sources");
 const TEST_URL = "https://www.austlii.edu.au/cgi-bin/viewdoc/au/cases/cth/HCA/1992/23.html";
 const SAMPLE_TEXT = "The High Court held that native title exists.";
 

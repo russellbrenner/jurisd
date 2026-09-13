@@ -2,11 +2,15 @@ import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { lookupByUrl, lookupByCitation, resetConnection } from "../../services/oalc.js";
 
 // vi.mock is hoisted before imports. vi.hoisted() allows us to compute values
-// that the mock factory needs. We use URL.pathname directly (POSIX-safe on
-// macOS/Linux) rather than fileURLToPath to avoid an import in the hoisted fn.
-const { fixturePath } = vi.hoisted(() => {
-  const url = new URL("../fixtures/oalc-fixture.jsonl", import.meta.url);
-  return { fixturePath: url.pathname };
+// that the mock factory needs. Static imports are not available inside the
+// hoisted function, so node:url is loaded dynamically. fileURLToPath (rather
+// than URL.pathname) matters on Windows, where pathname yields
+// "/E:/.../oalc-fixture.jsonl" and DuckDB cannot open the fixture.
+const { fixturePath } = await vi.hoisted(async () => {
+  const { fileURLToPath } = await import("node:url");
+  return {
+    fixturePath: fileURLToPath(new URL("../fixtures/oalc-fixture.jsonl", import.meta.url)),
+  };
 });
 
 vi.mock("../../config.js", () => ({
