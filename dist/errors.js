@@ -19,6 +19,15 @@ export class AustLiiError extends Error {
         this.name = "AustLiiError";
     }
 }
+/**
+ * Error thrown when AustLII serves a Cloudflare challenge instead of the
+ * requested document and the request could not be satisfied by any fallback.
+ *
+ * Carries the blocked {@link resourceUrl} and a {@link fallbackTried} flag
+ * indicating whether the OALC corpus fallback was consulted (true) or skipped
+ * because it was disabled (false). The message is deliberately actionable and
+ * never contains cookies, `cf_clearance`, or any other secret.
+ */
 export class CloudflareBlockedError extends AustLiiError {
     resourceUrl;
     fallbackTried;

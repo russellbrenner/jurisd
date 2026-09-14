@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { fetchWithTransport, fetcherForUrl } from "../../services/transport.js";
-import { HttpStatusError } from "../../errors.js";
+import { CloudflareBlockedError, HttpStatusError } from "../../errors.js";
 
 // Mock cloudflare detection to keep tests deterministic
 vi.mock("../../services/cloudflare.js", () => ({
@@ -96,26 +96,32 @@ describe("fetchWithTransport (axios path)", () => {
     expect((err as HttpStatusError).statusCode).toBe(404);
   });
 
-  it("throws a descriptive error on CF challenge body", async () => {
+  it("throws a typed CloudflareBlockedError on a CF challenge body", async () => {
     const { isCloudflareChallenge } = await import("../../services/cloudflare.js");
     vi.mocked(isCloudflareChallenge).mockReturnValueOnce(true);
 
-    await expect(
-      fetchWithTransport("https://www.austlii.edu.au/au/cases/cth/HCA/1992/23.html", {
-        useImpit: false,
-      }),
-    ).rejects.toThrow("cf block");
+    const url = "https://www.austlii.edu.au/au/cases/cth/HCA/1992/23.html";
+    const err = await fetchWithTransport(url, { useImpit: false }).catch((error) => error);
+    expect(err).toBeInstanceOf(CloudflareBlockedError);
+    expect((err as CloudflareBlockedError).resourceUrl).toBe(url);
+    expect((err as CloudflareBlockedError).fallbackTried).toBe(false);
+    expect((err as Error).message).toContain("Cloudflare");
   });
 
-  it("throws a descriptive error when CF bot block status is returned", async () => {
+  it("throws a typed CloudflareBlockedError on the impit path too", async () => {
     const { isCloudflareChallenge } = await import("../../services/cloudflare.js");
     vi.mocked(isCloudflareChallenge).mockReturnValueOnce(true);
+    impitFetchMock.mockResolvedValue({
+      status: 403,
+      headers: new Headers({ "cf-mitigated": "challenge" }),
+      text: async () => "<html>Just a moment...</html>",
+    });
 
-    await expect(
-      fetchWithTransport("https://www.austlii.edu.au/au/cases/cth/HCA/1992/23.html", {
-        useImpit: false,
-      }),
-    ).rejects.toThrow();
+    const err = await fetchWithTransport(
+      "https://www.austlii.edu.au/au/cases/cth/HCA/1992/23.html",
+      { useImpit: true },
+    ).catch((error) => error);
+    expect(err).toBeInstanceOf(CloudflareBlockedError);
   });
 
   it("passes the configured timeout to impit requests", async () => {

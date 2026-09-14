@@ -104,6 +104,8 @@ describe("resolve_citation under a Cloudflare block", () => {
         verifiedBy: "exa",
         sources: { austlii: "blocked", exa: "ok" },
       });
+      // Provider state stays separate from the existence verdict.
+      expect(payload.httpStatus).toBeUndefined();
       expect(searchExaMock).toHaveBeenCalledOnce();
       expect(searchExaMock.mock.calls[0]?.[0]).toBe("[1992] HCA 23");
     });
@@ -204,6 +206,27 @@ describe("resolve_citation under a Cloudflare block", () => {
       const { payload } = await callResolve({ citation: "[9999] HCA 999" });
       expect(payload).toEqual([]);
       expect(searchAustLiiMock).toHaveBeenCalledOnce();
+    });
+
+    it("does not resurrect a URL AustLII answered 404 for when the text search is blocked", async () => {
+      headMock.mockResolvedValue({ status: 404, headers: {} });
+      searchAustLiiMock.mockRejectedValue(new CloudflareBlockedError("https://austlii", false));
+      const { isError, payload } = await callResolve({ citation: "[9999] HCA 999" });
+      expect(isError).toBe(false);
+      expect(payload).toMatchObject({
+        results: [],
+        degraded: true,
+        sources: { austlii: "blocked", exa: "not_configured" },
+      });
+      expect(payload.sources).not.toHaveProperty("austlii_direct");
+      expect(searchExaMock).toHaveBeenCalledOnce();
+    });
+
+    it("keeps the direct URL fallback for a search-only query with no prior 404", async () => {
+      searchAustLiiMock.mockRejectedValue(new CloudflareBlockedError("https://austlii", false));
+      const { payload } = await callResolve({ citation: "[2018] HCA 9", mode: "search" });
+      expect(payload.sources).toEqual({ austlii: "blocked", austlii_direct: "ok" });
+      expect(headMock).not.toHaveBeenCalled();
     });
 
     it("recovers a case-name query through Exa when AustLII search is blocked", async () => {

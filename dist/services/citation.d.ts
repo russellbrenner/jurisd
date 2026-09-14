@@ -21,21 +21,34 @@ export interface AGLC4FormatInput {
 /**
  * How a {@link validateCitation} verdict was reached.
  *
- * - `found`: AustLII answered 2xx for the canonical URL.
+ * - `found`: the citation was confirmed to exist by the source named in
+ *   {@link CitationValidationResult.verifiedBy}. {@link validateCitation}
+ *   itself only ever sets `verifiedBy: "austlii"` (AustLII answered 2xx for
+ *   the canonical URL); a caller that confirms a blocked check through a
+ *   fallback such as Exa sets `verifiedBy: "exa"` and reports AustLII's own
+ *   state separately in `sources`.
  * - `not_found`: AustLII answered 404, so the citation is genuinely absent.
  * - `blocked`: AustLII served a Cloudflare challenge (documented `cf-mitigated`
  *   header, or a 403/503 bot-block status). `valid` is false but the citation
  *   was **not** proven absent; callers should try a fallback source.
- * - `unreachable`: a network error, timeout, or other unexpected HTTP status.
- *   Again unverified rather than absent.
+ * - `unreachable`: no usable answer: a network error or timeout, or any HTTP
+ *   status other than 2xx, 404, 403 or 503 (for example 500, 405 or 429).
+ *   Again unverified rather than absent; `httpStatus` carries the status when
+ *   a response was received.
  * - `invalid`: not a neutral citation, or an unknown court code. No request
  *   was made.
  */
 export type CitationValidationStatus = "found" | "not_found" | "blocked" | "unreachable" | "invalid";
+/** Which source confirmed a `found` verdict. */
+export type CitationVerifier = "austlii" | "exa";
 export interface CitationValidationResult {
     valid: boolean;
     /** Distinguishes a definitive "not found" from "could not check". */
     status: CitationValidationStatus;
+    /** Set when `status` is `found`: the source that confirmed the citation. */
+    verifiedBy?: CitationVerifier;
+    /** The HTTP status AustLII answered with, when a response was received. */
+    httpStatus?: number;
     canonicalCitation?: string;
     austliiUrl?: string;
     message?: string;

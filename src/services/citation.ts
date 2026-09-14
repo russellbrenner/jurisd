@@ -33,23 +33,37 @@ export interface AGLC4FormatInput {
 /**
  * How a {@link validateCitation} verdict was reached.
  *
- * - `found`: AustLII answered 2xx for the canonical URL.
+ * - `found`: the citation was confirmed to exist by the source named in
+ *   {@link CitationValidationResult.verifiedBy}. {@link validateCitation}
+ *   itself only ever sets `verifiedBy: "austlii"` (AustLII answered 2xx for
+ *   the canonical URL); a caller that confirms a blocked check through a
+ *   fallback such as Exa sets `verifiedBy: "exa"` and reports AustLII's own
+ *   state separately in `sources`.
  * - `not_found`: AustLII answered 404, so the citation is genuinely absent.
  * - `blocked`: AustLII served a Cloudflare challenge (documented `cf-mitigated`
  *   header, or a 403/503 bot-block status). `valid` is false but the citation
  *   was **not** proven absent; callers should try a fallback source.
- * - `unreachable`: a network error, timeout, or other unexpected HTTP status.
- *   Again unverified rather than absent.
+ * - `unreachable`: no usable answer: a network error or timeout, or any HTTP
+ *   status other than 2xx, 404, 403 or 503 (for example 500, 405 or 429).
+ *   Again unverified rather than absent; `httpStatus` carries the status when
+ *   a response was received.
  * - `invalid`: not a neutral citation, or an unknown court code. No request
  *   was made.
  */
 export type CitationValidationStatus =
   "found" | "not_found" | "blocked" | "unreachable" | "invalid";
 
+/** Which source confirmed a `found` verdict. */
+export type CitationVerifier = "austlii" | "exa";
+
 export interface CitationValidationResult {
   valid: boolean;
   /** Distinguishes a definitive "not found" from "could not check". */
   status: CitationValidationStatus;
+  /** Set when `status` is `found`: the source that confirmed the citation. */
+  verifiedBy?: CitationVerifier;
+  /** The HTTP status AustLII answered with, when a response was received. */
+  httpStatus?: number;
   canonicalCitation?: string;
   austliiUrl?: string;
   message?: string;
@@ -305,50 +319,55 @@ export async function validateCitation(citation: string): Promise<CitationValida
   const url = `https://www.austlii.edu.au/cgi-bin/viewdoc/${path}/${year}/${num}.html`;
 
   let status: Exclude<CitationValidationStatus, "invalid">;
+  let httpStatus: number | undefined;
   try {
     // validateStatus: accept every status so a 403/404/503 is classified here
     // rather than surfacing as a thrown error that loses the headers.
     const response = await axios.head(url, { timeout: 10000, validateStatus: () => true });
+    httpStatus = response.status;
     status = classifyAustliiHead(response.status, headerRecord(response.headers));
   } catch (error: unknown) {
     // An HTTP error response that still reached us (e.g. a mocked or
     // interceptor-raised rejection carrying `response`) is classified by its
     // status; anything else (DNS, timeout, reset) is a transport failure.
     const response = (error as { response?: { status?: number; headers?: unknown } }).response;
-    status =
-      typeof response?.status === "number"
-        ? classifyAustliiHead(response.status, headerRecord(response.headers))
-        : "unreachable";
+    if (typeof response?.status === "number") {
+      httpStatus = response.status;
+      status = classifyAustliiHead(response.status, headerRecord(response.headers));
+    } else {
+      status = "unreachable";
+    }
   }
 
+  const base = {
+    status,
+    canonicalCitation: normalised,
+    austliiUrl: url,
+    ...(httpStatus !== undefined ? { httpStatus } : {}),
+  };
   switch (status) {
     case "found":
-      return { valid: true, status, canonicalCitation: normalised, austliiUrl: url };
+      return { valid: true, verifiedBy: "austlii", ...base };
     case "not_found":
-      return {
-        valid: false,
-        status,
-        canonicalCitation: normalised,
-        message: "Citation not found on AustLII",
-        austliiUrl: url,
-      };
+      return { valid: false, message: "Citation not found on AustLII", ...base };
     case "blocked":
       return {
         valid: false,
-        status,
-        canonicalCitation: normalised,
         message:
           "AustLII is behind a Cloudflare challenge, so the citation could not be verified " +
           "(it was not proven absent). The canonical URL is deterministic and may still resolve.",
-        austliiUrl: url,
+        ...base,
       };
     case "unreachable":
       return {
         valid: false,
-        status,
-        canonicalCitation: normalised,
-        message: "AustLII could not be reached, so the citation could not be verified.",
-        austliiUrl: url,
+        message:
+          httpStatus !== undefined
+            ? `AustLII answered HTTP ${httpStatus}, so the citation could not be verified ` +
+              "(it was not proven absent)."
+            : "AustLII could not be reached (network error or timeout), so the citation " +
+              "could not be verified (it was not proven absent).",
+        ...base,
       };
   }
 }

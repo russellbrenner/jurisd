@@ -22,15 +22,7 @@ export class AustLiiError extends Error {
   }
 }
 
-/**
- * Error thrown when AustLII serves a Cloudflare challenge instead of the
- * requested document and the request could not be satisfied by any fallback.
- *
- * Carries the blocked {@link resourceUrl} and a {@link fallbackTried} flag
- * indicating whether the OALC corpus fallback was consulted (true) or skipped
- * because it was disabled (false). The message is deliberately actionable and
- * never contains cookies, `cf_clearance`, or any other secret.
- */
+/** Options for {@link CloudflareBlockedError}. */
 export interface CloudflareBlockedErrorOptions {
   /**
    * Whether an Exa API key is configured. Defaults to the live configuration;
@@ -41,6 +33,15 @@ export interface CloudflareBlockedErrorOptions {
   exaConfigured?: boolean;
 }
 
+/**
+ * Error thrown when AustLII serves a Cloudflare challenge instead of the
+ * requested document and the request could not be satisfied by any fallback.
+ *
+ * Carries the blocked {@link resourceUrl} and a {@link fallbackTried} flag
+ * indicating whether the OALC corpus fallback was consulted (true) or skipped
+ * because it was disabled (false). The message is deliberately actionable and
+ * never contains cookies, `cf_clearance`, or any other secret.
+ */
 export class CloudflareBlockedError extends AustLiiError {
   constructor(
     public readonly resourceUrl: string,

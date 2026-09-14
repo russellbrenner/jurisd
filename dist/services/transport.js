@@ -17,8 +17,8 @@
  * damaged install is missing it.
  */
 import { config } from "../config.js";
-import { HttpStatusError } from "../errors.js";
-import { isCloudflareChallenge, cfBlockMessage } from "./cloudflare.js";
+import { CloudflareBlockedError, HttpStatusError } from "../errors.js";
+import { isCloudflareChallenge } from "./cloudflare.js";
 import { isAustliiUrl } from "./austlii-url.js";
 import { assertFetchableUrl, assertRedirectAllowed, MAX_REDIRECTS } from "../utils/url-guard.js";
 function isSuccessfulStatus(status) {
@@ -153,7 +153,7 @@ async function fetchWithImpit(url, options) {
         respHeaders[key] = value;
     });
     if (isCloudflareChallenge(status, body, respHeaders)) {
-        throw new Error(`[impit] ${cfBlockMessage(url)}`);
+        throw new CloudflareBlockedError(url, false);
     }
     if (!isSuccessfulStatus(status)) {
         throw new HttpStatusError(url, status);
@@ -186,7 +186,7 @@ async function fetchWithAxios(url, options) {
         }
     }
     if (isCloudflareChallenge(status, body, respHeaders)) {
-        throw new Error(`[axios] ${cfBlockMessage(url)}`);
+        throw new CloudflareBlockedError(url, false);
     }
     if (!isSuccessfulStatus(status)) {
         throw new HttpStatusError(url, status);
