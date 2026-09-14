@@ -199,10 +199,12 @@ export async function validateCitation(citation) {
     }
     const url = `https://www.austlii.edu.au/cgi-bin/viewdoc/${path}/${year}/${num}.html`;
     let status;
+    let httpStatus;
     try {
         // validateStatus: accept every status so a 403/404/503 is classified here
         // rather than surfacing as a thrown error that loses the headers.
         const response = await axios.head(url, { timeout: 10000, validateStatus: () => true });
+        httpStatus = response.status;
         status = classifyAustliiHead(response.status, headerRecord(response.headers));
     }
     catch (error) {
@@ -210,38 +212,41 @@ export async function validateCitation(citation) {
         // interceptor-raised rejection carrying `response`) is classified by its
         // status; anything else (DNS, timeout, reset) is a transport failure.
         const response = error.response;
-        status =
-            typeof response?.status === "number"
-                ? classifyAustliiHead(response.status, headerRecord(response.headers))
-                : "unreachable";
+        if (typeof response?.status === "number") {
+            httpStatus = response.status;
+            status = classifyAustliiHead(response.status, headerRecord(response.headers));
+        }
+        else {
+            status = "unreachable";
+        }
     }
+    const base = {
+        status,
+        canonicalCitation: normalised,
+        austliiUrl: url,
+        ...(httpStatus !== undefined ? { httpStatus } : {}),
+    };
     switch (status) {
         case "found":
-            return { valid: true, status, canonicalCitation: normalised, austliiUrl: url };
+            return { valid: true, verifiedBy: "austlii", ...base };
         case "not_found":
-            return {
-                valid: false,
-                status,
-                canonicalCitation: normalised,
-                message: "Citation not found on AustLII",
-                austliiUrl: url,
-            };
+            return { valid: false, message: "Citation not found on AustLII", ...base };
         case "blocked":
             return {
                 valid: false,
-                status,
-                canonicalCitation: normalised,
                 message: "AustLII is behind a Cloudflare challenge, so the citation could not be verified " +
                     "(it was not proven absent). The canonical URL is deterministic and may still resolve.",
-                austliiUrl: url,
+                ...base,
             };
         case "unreachable":
             return {
                 valid: false,
-                status,
-                canonicalCitation: normalised,
-                message: "AustLII could not be reached, so the citation could not be verified.",
-                austliiUrl: url,
+                message: httpStatus !== undefined
+                    ? `AustLII answered HTTP ${httpStatus}, so the citation could not be verified ` +
+                        "(it was not proven absent)."
+                    : "AustLII could not be reached (network error or timeout), so the citation " +
+                        "could not be verified (it was not proven absent).",
+                ...base,
             };
     }
 }

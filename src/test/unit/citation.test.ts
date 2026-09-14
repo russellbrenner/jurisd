@@ -145,6 +145,8 @@ describe("validateCitation", () => {
     const result = await validateCitation("[1992] HCA 23");
     expect(result.valid).toBe(true);
     expect(result.status).toBe("found");
+    expect(result.verifiedBy).toBe("austlii");
+    expect(result.httpStatus).toBe(200);
     expect(result.austliiUrl).toContain("HCA");
   });
 
@@ -211,9 +213,27 @@ describe("validateCitation", () => {
     expect(result.message).not.toMatch(/not found/i);
   });
 
-  it("reports an unexpected status (500) as unreachable", async () => {
+  it("reports an unexpected status (500) as unreachable and names the status", async () => {
     vi.spyOn(axios, "head").mockResolvedValueOnce({ status: 500, headers: {} });
-    expect((await validateCitation("[1992] HCA 23")).status).toBe("unreachable");
+    const result = await validateCitation("[1992] HCA 23");
+    expect(result).toMatchObject({ valid: false, status: "unreachable", httpStatus: 500 });
+    expect(result.verifiedBy).toBeUndefined();
+    expect(result.message).toContain("HTTP 500");
+    expect(result.message).not.toMatch(/could not be reached/);
+  });
+
+  it("distinguishes a transport failure from an HTTP answer in the unreachable message", async () => {
+    vi.spyOn(axios, "head").mockRejectedValueOnce(new Error("ECONNRESET"));
+    const result = await validateCitation("[1992] HCA 23");
+    expect(result.httpStatus).toBeUndefined();
+    expect(result.message).toMatch(/could not be reached/);
+  });
+
+  it("never sets verifiedBy on a not_found verdict", async () => {
+    vi.spyOn(axios, "head").mockResolvedValueOnce({ status: 404, headers: {} });
+    const result = await validateCitation("[9999] HCA 999");
+    expect(result).toMatchObject({ status: "not_found", httpStatus: 404 });
+    expect(result.verifiedBy).toBeUndefined();
   });
 
   it("marks syntactically invalid input as status=invalid", async () => {

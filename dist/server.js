@@ -507,10 +507,15 @@ export function createMcpServer() {
             return validateResult({ ...result, sources, degraded: true });
         }
         const searchOptions = { type: "case", sortBy: "relevance", limit: 5 };
+        // Set when mode=auto validated a neutral citation and AustLII answered
+        // 404: the text-search fallback below must not resurrect that same URL
+        // as a direct-citation hit if the search itself is Cloudflare-blocked.
+        let provenNotFound = false;
         if (mode === "auto") {
             const parsed = parseCitation(citation);
             if (parsed?.neutralCitation) {
                 const validated = await validateCitation(parsed.neutralCitation);
+                provenNotFound = validated.status === "not_found";
                 if (validated.valid && validated.austliiUrl) {
                     const result = {
                         title: citation,
@@ -547,8 +552,11 @@ export function createMcpServer() {
             if (!austliiSearchWarning(error))
                 throw error;
             // Same cost-ordered fallback as search_cases: a neutral-citation query
-            // resolves to its direct URL for free; otherwise Exa discovery.
-            const direct = directAustliiResultFromNeutralQuery(citation, searchOptions);
+            // resolves to its direct URL for free; otherwise Exa discovery. The
+            // direct URL is skipped when AustLII has already answered 404 for it.
+            const direct = provenNotFound
+                ? undefined
+                : directAustliiResultFromNeutralQuery(citation, searchOptions);
             if (direct) {
                 return formatSearchResults([direct], format ?? "json", {
                     sources: { austlii: "blocked", austlii_direct: "ok" },

@@ -245,7 +245,11 @@ Non-AustLII URLs are rejected.
 - `validate`: AustLII existence check only
 - `search`: text search only
 
-When AustLII is Cloudflare-blocked or unreachable, every mode degrades the same way `search_cases` does rather than failing: `auto` and `search` return the deterministic citation URL for a neutral-citation query (`discoverySource: "citation-url"`) or Exa discovery results (when `EXA_API_KEY` is set), with `sources` provenance; `validate` asks Exa to confirm the citation and otherwise returns `degraded: true` (CLI exit code 4).
+Fallback behaviour when AustLII does not answer:
+
+- `validate`: when the AustLII check is `blocked` (Cloudflare challenge) or `unreachable`, asks Exa to confirm the citation (when `EXA_API_KEY` is set) and otherwise returns `degraded: true` (CLI exit code 4).
+- `auto`: when the AustLII check of a detected neutral citation is `blocked` or `unreachable`, returns the deterministic citation URL as a `discoverySource: "citation-url"` result with `sources` provenance instead of running a text search. A definitive `not_found` still falls through to the text search.
+- `auto` (case-name fallback) and `search`: when the AustLII text search itself is Cloudflare-blocked, return the direct citation URL for a neutral-citation query (unless AustLII already answered 404 for it), then Exa discovery results, then an empty `degraded: true` result. Non-Cloudflare search failures (a transport error, an unexpected HTTP status) are not caught and still surface as tool errors, the same way `search_cases` behaves.
 
 **Response (`validate`):**
 
@@ -258,7 +262,7 @@ When AustLII is Cloudflare-blocked or unreachable, every mode degrades the same 
 }
 ```
 
-`status` is one of `found`, `not_found` (AustLII answered 404), `blocked` (Cloudflare challenge: unverified, not absent), `unreachable` (network failure) or `invalid` (not a neutral citation). A `blocked` or `unreachable` check confirmed via Exa returns `valid: true`, `verifiedBy: "exa"` and `sources: { "austlii": "blocked", "exa": "ok" }`.
+`status` is one of `found`, `not_found` (AustLII answered 404), `blocked` (Cloudflare challenge: unverified, not absent), `unreachable` (a network failure or timeout, or an unexpected HTTP status such as 500, 405 or 429; `httpStatus` carries the status when a response was received) or `invalid` (not a neutral citation). `found` means the citation was confirmed to exist by the source named in `verifiedBy`: `"austlii"` when AustLII answered 2xx directly, or `"exa"` when a `blocked` or `unreachable` check was confirmed through Exa, in which case `sources` still reports AustLII's own state (for example `{ "austlii": "blocked", "exa": "ok" }`).
 
 ---
 

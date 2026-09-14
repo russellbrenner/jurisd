@@ -9,6 +9,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- `resolve_citation` `mode=auto` no longer resurrects a citation URL that
+  AustLII has already answered 404 for when the follow-up text search is
+  Cloudflare-blocked; it continues to Exa or a degraded result instead.
+- `validateCitation` results now carry `verifiedBy` (`austlii` or `exa`) so a
+  `found` verdict says which source confirmed it, and `httpStatus` when
+  AustLII answered; the `unreachable` message names the HTTP status it
+  received rather than claiming AustLII could not be reached.
+- The text-fetch transport throws a typed `CloudflareBlockedError` on a
+  Cloudflare challenge instead of a plain `Error`.
+
 - `resolve_citation` now takes the same Cloudflare fallback path as
   `search_cases` (#192). `mode=auto` and `mode=search` return the direct
   citation URL or Exa discovery results with `sources` provenance instead of
