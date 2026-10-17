@@ -128,6 +128,10 @@ Using a different agent? [docs/HARNESS-SETUP.md](docs/HARNESS-SETUP.md) has
 copy-paste configs for Cursor, Windsurf, VS Code, Cline, Continue, Codex CLI,
 Zed, Gemini CLI, and more.
 
+For optional web discovery of official legislation alongside local research, see
+[Parallel Search MCP setup](docs/HARNESS-SETUP.md#optional-public-source-discovery-with-parallel)
+for Claude Code, including privacy and source-version checks.
+
 All environment variables are **optional** — with none set, the live AustLII
 layer and the local-module recall layer both work. See
 [docs/INSTALL.md](docs/INSTALL.md) for the local-clone path, every config option,
