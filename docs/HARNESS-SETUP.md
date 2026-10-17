@@ -55,6 +55,74 @@ Or edit a project `.mcp.json` directly:
 }
 ```
 
+### Optional public-source discovery with Parallel
+
+Add [Parallel Search MCP](https://docs.parallel.ai/integrations/mcp/search-mcp)
+alongside jurisd when you want to discover official legislation pages beyond
+your installed modules. It provides free web search and page fetching without
+an account or API key; anonymous search uses Fast mode and has usage limits.
+jurisd continues to serve its own tools over stdio. Parallel is a separate
+remote service, selected by your client, rather than a jurisd search fallback.
+
+**Privacy:** queries and fetched URLs sent to Parallel leave your machine.
+Use public legal terms only. Do not send client names, matter facts, privileged
+material or local document contents. Leave the server unconfigured for a
+workflow that must stay offline.
+
+In a Claude Code project `.mcp.json`, add the `parallel-search` entry under your
+existing `mcpServers`. Keep your existing jurisd command, arguments, environment
+and other server entries. For a new configuration using the npm install path:
+
+```json
+{
+  "mcpServers": {
+    "jurisd": {
+      "command": "npx",
+      "args": ["-y", "jurisd"]
+    },
+    "parallel-search": {
+      "type": "http",
+      "url": "https://search.parallel.ai/mcp",
+      "headers": {
+        "User-Agent": "jurisd-research/0.5.0 (https://github.com/russellbrenner/jurisd)"
+      }
+    }
+  }
+}
+```
+
+Restart Claude Code, review its project-server approval prompt, then use `/mcp`
+to check both servers. Parallel exposes `web_search` and `web_fetch`; jurisd's
+`list_data_modules` reports your local module coverage. If a Parallel call
+reports a usage limit, pause online discovery and use installed local modules
+or open the official source in your browser. See the
+[Claude Code MCP guide](https://code.claude.com/docs/en/mcp) for project scope
+and server permissions.
+
+Try this public legislation workflow:
+
+> Use jurisd's `list_data_modules` to check local coverage first. Use Parallel's
+> `web_search` to find the Privacy Act 1988 (Cth) on `legislation.gov.au`.
+> Follow the Federal Register's latest in-force compilation and use `web_fetch`
+> if the search excerpts are insufficient. Record the official URL and the
+> compilation date shown by the source. Locate the definition of "personal
+> information" in s 6 and quote its source text. If a ready local module covers
+> that Act, use jurisd's `get_provision` with `act: "Privacy Act 1988 (Cth)"`
+> and `provision: "s 6"` to compare the local text, retaining its version and
+> snapshot metadata. Report missing coverage or a not-found result explicitly.
+
+Search can return historical compilations. A search excerpt or model summary
+does not establish the current law: check the Register's version and source
+text, and keep online and local versions distinct. Local provision lookup
+requires `@duckdb/node-api` and an installed module; see
+[INSTALL.md](INSTALL.md#optional-native-dependencies) and the
+[module installation guide](../README.md#installing-modules). This example does
+not require embeddings. For a source that blocks extraction, open its official
+page in your browser and report that the text could not be verified.
+
+To remove this setup, delete only the `parallel-search` entry and restart your
+client.
+
 ## Claude Desktop
 
 Edit `claude_desktop_config.json`:
